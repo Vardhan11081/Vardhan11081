@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hema Vardhan Moganti – Resume</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: #1a1a2e;
+      background: #f5f6fa;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Page Wrapper ── */
+    .page {
+      max-width: 860px;
+      margin: 30px auto;
+      background: #ffffff;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0f3460 0%, #16213e 60%, #0a2647 100%);
+      color: #ffffff;
+      padding: 32px 36px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+
+    .header-left h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .header-left .tagline {
+      font-size: 14px;
+      color: #7eb8f7;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      margin-bottom: 16px;
+    }
+
+    .contact-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 24px;
+    }
+
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      color: #d0e8ff;
+    }
+
+    .contact-item .icon {
+      width: 14px;
+      height: 14px;
+      fill: #7eb8f7;
+      flex-shrink: 0;
+    }
+
+    .header-right {
+      text-align: right;
+      font-size: 12px;
+      color: #a8c8ee;
+      white-space: nowrap;
+    }
+
+    /* ── Main Content ── */
+    .main {
+      padding: 0 36px 32px;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-top: 22px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      color: #0f3460;
+      border-bottom: 2px solid #0f3460;
+      padding-bottom: 4px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Summary ── */
+    .summary p {
+      color: #333;
+      font-size: 13px;
+    }
+
+    /* ── Skills Grid ── */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px 24px;
+    }
+
+    .skill-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .skill-label {
+      font-weight: 600;
+      color: #0f3460;
+      white-space: nowrap;
+      font-size: 12.5px;
+    }
+
+    .skill-values {
+      color: #444;
+      font-size: 12.5px;
+    }
+
+    /* ── Education ── */
+    .edu-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .edu-item .edu-title {
+      font-weight: 700;
+      color: #0f3460;
+      font-size: 13.5px;
+    }
+
+    .edu-item .edu-sub {
+      font-size: 12.5px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    .edu-item .edu-date {
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      margin-left: 16px;
+      text-align: right;
+    }
+
+    /* ── Projects ── */
+    .project-item {
+      margin-bottom: 14px;
+      padding-left: 14px;
+      border-left: 3px solid #d0e8ff;
+    }
+
+    .project-item.highlight {
+      border-left-color: #0f3460;
+      background: #f7faff;
+      padding: 10px 14px;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .project-name {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0f3460;
+    }
+
+    .project-badge {
+      font-size: 10.5px;
+      background: #0f3460;
+      color: #fff;
+      padding: 1px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .project-desc {
+      font-size: 12.5px;
+      color: #444;
+      margin-top: 3px;
+      line-height: 1.5;
+    }
+
+    .project-tools {
+      font-size: 12px;
+      color: #0f3460;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .project-tools span {
+      font-weight: 700;
+    }
+
+    /* ── Experience ── */
+    .exp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .exp-title {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0f3460;
+    }
+
+    .exp-org {
+      font-size: 12.5px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    .exp-date {
+      font-size: 12px;
+      color: #666;
+      text-align: right;
+      white-space: nowrap;
+      margin-left: 16px;
+    }
+
+    .exp-bullets {
+      margin-top: 6px;
+      padding-left: 18px;
+    }
+
+    .exp-bullets li {
+      font-size: 12.5px;
+      color: #444;
+      margin-bottom: 3px;
+    }
+
+    /* ── Certifications ── */
+    .cert-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .cert-list li {
+      font-size: 12.5px;
+      color: #444;
+      padding: 3px 0;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .cert-list li::before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: #0f3460;
+    }
+
+    /* ── Personal Attributes ── */
+    .attr-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px 24px;
+    }
+
+    .attr-grid li {
+      font-size: 12.5px;
+      color: #444;
+      list-style: none;
+      padding-left: 14px;
+      position: relative;
+    }
+
+    .attr-grid li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #0f3460;
+      font-weight: 700;
+    }
+
+    /* ── Languages ── */
+    .lang-row {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 12.5px;
+      color: #444;
+    }
+
+    .lang-row strong {
+      color: #0f3460;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; }
+      .page { box-shadow: none; margin: 0; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ════════════ HEADER ════════════ -->
+  <header class="header">
+    <div class="header-left">
+      <h1>Hema Vardhan Moganti</h1>
+      <div class="tagline">Cloud &amp; AI Solutions Developer &nbsp;|&nbsp; Azure &amp; Multi-Cloud &nbsp;|&nbsp; Cybersecurity</div>
+      <div class="contact-grid">
+        <div class="contact-item">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24 11.36 11.36 0 0 0 3.56.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.56a1 1 0 0 1-.25 1.02l-2.2 2.21z"/></svg>
+          +61 040 1257 633
+        </div>
+        <div class="contact-item">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          <a href="mailto:Vardhanmoga11081@gmail.com">Vardhanmoga11081@gmail.com</a>
+        </div>
+        <div class="contact-item">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+          101 Ballarat Rd, Footscray, VIC 3011
+        </div>
+        <div class="contact-item">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm-5 3h-2c-2.21 0-4 1.79-4 4v2H6v2.5h2V19h2.5v-4.5H13l.5-2.5h-3V10c0-.83.67-1.5 1.5-1.5H14V6z"/></svg>
+          <a href="https://www.linkedin.com/in/hema-vardhan-moganti" target="_blank">Hema Vardhan Moganti</a>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      Melbourne, VIC, Australia<br/>
+      Unrestricted Work Rights
+    </div>
+  </header>
+
+  <!-- ════════════ MAIN ════════════ -->
+  <div class="main">
+
+    <!-- SUMMARY -->
+    <section class="section summary">
+      <div class="section-title">Professional Summary</div>
+      <p>
+        Final-year Bachelor of Networking (Cyber Security) student with hands-on cloud and AI development experience spanning
+        Microsoft Azure, AWS, and Google Cloud. Demonstrated ability to design, deploy, and manage cloud-native solutions —
+        including an AI-powered multi-cloud text recognition and image enhancement system — and secure enterprise networks.
+        Proficient in Python, Bash, and PowerShell scripting with practical exposure to CI/CD pipelines, Git workflows,
+        Infrastructure as Code, and DevOps practices. Passionate about Azure PaaS services, proactive monitoring,
+        automation, and delivering high-quality outcomes for customers in managed-services environments.
+      </p>
+    </section>
+
+    <!-- TECHNICAL SKILLS -->
+    <section class="section">
+      <div class="section-title">Technical Skills</div>
+      <div class="skills-grid">
+        <div class="skill-row">
+          <span class="skill-label">Cloud Platforms:</span>
+          <span class="skill-values">Microsoft Azure, AWS, Google Cloud Platform</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">Azure Services:</span>
+          <span class="skill-values">Azure VM, Azure Functions, App Service, Azure Monitor, Log Analytics, Active Directory</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">AWS Services:</span>
+          <span class="skill-values">Lambda, S3, Rekognition, EventBridge, CloudWatch</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">GCP Services:</span>
+          <span class="skill-values">Vision API, Cloud Functions, Cloud Storage, Cloud Run</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">Programming:</span>
+          <span class="skill-values">Python, Bash, PowerShell, HTML, CSS, SQL</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">DevOps &amp; IaC:</span>
+          <span class="skill-values">Git, GitHub Actions, CI/CD pipelines, Bicep/ARM (foundational), Infrastructure as Code</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">AI / ML:</span>
+          <span class="skill-values">Computer Vision (OCR/text detection), OpenCV, Pillow, cloud-native AI APIs</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">Networking &amp; Security:</span>
+          <span class="skill-values">TCP/IP, DNS, DHCP, VPN, VLANs, Active Directory, Group Policy, Wireshark</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">Tools:</span>
+          <span class="skill-values">Cisco Packet Tracer, Cisco Modelling Labs, Autopsy, FTK Imager, VS Code, PyCharm, SQLite, MS Access</span>
+        </div>
+        <div class="skill-row">
+          <span class="skill-label">Operating Systems:</span>
+          <span class="skill-values">Windows Server 2022, Windows 10/11, Linux (Ubuntu)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDUCATION -->
+    <section class="section">
+      <div class="section-title">Education</div>
+      <div class="edu-item">
+        <div>
+          <div class="edu-title">Bachelor of Networking (Major in Cyber Security)</div>
+          <div class="edu-sub">Melbourne Institute of Technology &nbsp;·&nbsp; Melbourne, VIC 3000</div>
+        </div>
+        <div class="edu-date">Sep 2023 – Jun 2026<br/><em>Expected Graduation</em></div>
+      </div>
+    </section>
+
+    <!-- PROJECTS -->
+    <section class="section">
+      <div class="section-title">Projects</div>
+
+      <!-- NEW FEATURED PROJECT -->
+      <div class="project-item highlight">
+        <div class="project-header">
+          <div class="project-name">AI-Powered Text Recognition &amp; Image Enhancement System</div>
+          <span class="project-badge">AWS + Google Cloud</span>
+        </div>
+        <div class="project-desc">
+          Designed and deployed a multi-cloud AI pipeline that automatically detects whether an uploaded image contains text,
+          extracts that text via OCR, and — when the source image is blurred — applies image enhancement algorithms before
+          re-running extraction. Outputs are saved as separate enhanced image files and structured <code>.txt</code> files,
+          enabling both human review and downstream automation.
+          <ul style="margin-top:6px; padding-left:18px; font-size:12.5px; color:#444;">
+            <li>Leveraged <strong>AWS Rekognition</strong> and <strong>Google Cloud Vision API</strong> for dual-cloud text detection and OCR, improving accuracy through result reconciliation.</li>
+            <li>Built serverless ingestion using <strong>AWS Lambda</strong> + <strong>S3</strong> triggers and <strong>Google Cloud Functions</strong> + <strong>Cloud Storage</strong> events for event-driven, auto-scaling processing.</li>
+            <li>Implemented image pre-processing pipeline with <strong>OpenCV</strong> and <strong>Pillow</strong> — blur detection (Laplacian variance), sharpening filters, and contrast enhancement — before OCR to increase text extraction accuracy on low-quality images.</li>
+            <li>Automated end-to-end workflow: image upload → AI text detection → conditional enhancement → OCR extraction → dual-output (enhanced image + .txt file) stored back in cloud storage.</li>
+            <li>Integrated <strong>CloudWatch</strong> and <strong>GCP Cloud Logging</strong> for monitoring, alerting, and audit trails across both clouds.</li>
+          </ul>
+        </div>
+        <div class="project-tools"><span>Tools:</span> AWS Lambda, S3, Rekognition, CloudWatch · Google Cloud Vision API, Cloud Functions, Cloud Storage, Cloud Run · Python, OpenCV, Pillow · Git, GitHub Actions</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Hybrid IT Environment Setup (Azure + VirtualBox)</div>
+        </div>
+        <div class="project-desc">
+          Deployed a main server on <strong>Microsoft Azure</strong> and branch servers in VirtualBox; configured secure Active
+          Directory-based authentication (AD DS, DNS, DHCP) across hybrid environments, simulating a real-world managed-services topology.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Microsoft Azure, VirtualBox, Windows Server 2022, Active Directory</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Event-Driven Data Processing Using AWS Serverless</div>
+        </div>
+        <div class="project-desc">
+          Built a fully serverless real-time data-processing pipeline using event triggers; implemented monitoring dashboards and CloudWatch alarms for proactive alerting.
+        </div>
+        <div class="project-tools"><span>Tools:</span> AWS Lambda, S3, EventBridge, CloudWatch · Python</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Secure Enterprise VPN Network Design &amp; Implementation</div>
+        </div>
+        <div class="project-desc">
+          Designed and simulated a site-to-site VPN for branch offices and remote users with encrypted tunnels, strong authentication, and policy-based access control.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Cisco Packet Tracer · IPSec VPN, ACLs</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Enterprise Network Design with VLANs &amp; Remote Access</div>
+        </div>
+        <div class="project-desc">
+          Built a multi-site enterprise network with VLANs, VTP, wireless access, and secure remote connectivity; applied QoS and inter-VLAN routing.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Cisco Packet Tracer · VLAN, VTP, OSPF, WPA2</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Windows Server Administration &amp; User Management</div>
+        </div>
+        <div class="project-desc">
+          Managed a Windows Server 2022 environment with OUs, user accounts, Group Policy Objects (GPOs), and RBAC — directly aligning with Azure AD and ITSM operational practices.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Windows Server 2022, Active Directory, GPMC</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Digital Forensics Investigation &amp; Evidence Recovery</div>
+        </div>
+        <div class="project-desc">
+          Recovered and analysed deleted data from USB drives; benchmarked tool performance and produced structured forensic reports.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Autopsy, ProDiscover Basic, FTK Imager</div>
+      </div>
+
+      <div class="project-item">
+        <div class="project-header">
+          <div class="project-name">Bank Management System – Python OOP CLI Application</div>
+        </div>
+        <div class="project-desc">
+          Developed an OOP-based CLI banking application with account lifecycle management, transaction processing, and persistent storage.
+        </div>
+        <div class="project-tools"><span>Tools:</span> Python, VS Code, CLI · OOP, file I/O</div>
+      </div>
+
+    </section>
+
+    <!-- EXPERIENCE -->
+    <section class="section">
+      <div class="section-title">Job Experience</div>
+      <div>
+        <div class="exp-header">
+          <div>
+            <div class="exp-title">Student Mentor</div>
+            <div class="exp-org">Melbourne Institute of Technology &nbsp;·&nbsp; Melbourne, VIC</div>
+          </div>
+          <div class="exp-date">Jun 2024 – Sep 2025</div>
+        </div>
+        <ul class="exp-bullets">
+          <li>Acted as a bridge between faculty and students, providing technical guidance on networking and cybersecurity labs — developing customer-focused communication and stakeholder management skills directly applicable to a managed-services role.</li>
+          <li>Simplified advanced security and networking frameworks for diverse cohorts, demonstrating strong written and verbal communication in technical and non-technical contexts.</li>
+          <li>Mentored across 10 core units (Networking, Programming, Project Management), enhancing student engagement and subject mastery while managing competing priorities independently.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CERTIFICATIONS -->
+    <section class="section">
+      <div class="section-title">Certifications &amp; Training</div>
+      <ul class="cert-list">
+        <li>Web Designing with HTML – GitHub</li>
+        <li>Forage Mastercard Cybersecurity Virtual Experience – Phishing Awareness Campaign Design</li>
+        <li>CompTIA Security+ &nbsp;<em>(In Progress)</em></li>
+        <li>Microsoft Azure Fundamentals (AZ-900) &nbsp;<em>(Pursuing)</em></li>
+      </ul>
+    </section>
+
+    <!-- PERSONAL ATTRIBUTES -->
+    <section class="section">
+      <div class="section-title">Personal Attributes</div>
+      <ul class="attr-grid">
+        <li>Strong analytical and problem-solving skills with a security-first mindset</li>
+        <li>Customer-focused with a professional and adaptable communication style</li>
+        <li>Excellent teamwork and collaboration in technical and non-technical contexts</li>
+        <li>Genuine curiosity and eagerness to learn new technologies — particularly Azure</li>
+        <li>Self-motivated; able to work independently and manage multiple priorities</li>
+        <li>Proactive approach to identifying, mitigating, and documenting risks</li>
+      </ul>
+    </section>
+
+    <!-- LANGUAGES -->
+    <section class="section">
+      <div class="section-title">Languages</div>
+      <div class="lang-row">
+        <div><strong>English</strong> – Professional</div>
+        <div><strong>Hindi</strong> – Professional</div>
+        <div><strong>Telugu</strong> – Native</div>
+      </div>
+    </section>
+
+  </div><!-- /main -->
+</div><!-- /page -->
+</body>
+</html>
