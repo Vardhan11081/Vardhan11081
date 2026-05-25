@@ -149,7 +149,7 @@ img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 img_para.paragraph_format.space_before = Pt(4)
 img_para.paragraph_format.space_after  = Pt(6)
 run_img = img_para.add_run()
-run_img.add_picture('/workspace/output/dfd_level1.png', width=Inches(6.5))
+run_img.add_picture('/workspace/output/dfd_level1_v2.png', width=Inches(6.5))
 
 cap1 = doc.add_paragraph('Figure 1: FreshBite Salads – Level 1 Data Flow Diagram')
 cap1.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -261,7 +261,7 @@ img_para2.alignment = WD_ALIGN_PARAGRAPH.CENTER
 img_para2.paragraph_format.space_before = Pt(4)
 img_para2.paragraph_format.space_after  = Pt(6)
 run_img2 = img_para2.add_run()
-run_img2.add_picture('/workspace/output/class_diagram.png', width=Inches(6.8))
+run_img2.add_picture('/workspace/output/class_diagram_v2.png', width=Inches(6.8))
 
 cap2 = doc.add_paragraph('Figure 2: FreshBite Salads – Class Diagram')
 cap2.alignment = WD_ALIGN_PARAGRAPH.CENTER
