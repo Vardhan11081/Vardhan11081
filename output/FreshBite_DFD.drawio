@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1540" pageHeight="1100" math="0" shadow="1">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+    <mxCell id="2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a8d8ea;strokeColor=none;fontSize=0;" vertex="1" parent="1">
+      <mxGeometry x="0" y="0" width="1392" height="986" as="geometry" />
+    </mxCell>
+    <mxCell id="3" value="1.0&#10;Browse&#10;Menu" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="250" y="134" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="4" value="2.0&#10;Manage User&#10;Account" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="772" y="134" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="5" value="3.0&#10;Manage&#10;Shopping Cart" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="250" y="395" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="6" value="4.0&#10;Process&#10;Checkout" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="656" y="395" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="7" value="5.0&#10;Manage&#10;Orders" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="308" y="656" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="8" value="6.0&#10;Manage&#10;Reward Points" style="ellipse;whiteSpace=wrap;html=1;fillColor=#0a3055;strokeColor=#4a7aab;strokeWidth=2;fontColor=#ffffff;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="772" y="714" width="136" height="136" as="geometry" />
+    </mxCell>
+    <mxCell id="9" value="Customer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2e6b3e;strokeColor=#ffffff;strokeWidth=3;fontColor=#ffffff;fontSize=10;fontStyle=1;double=1;" vertex="1" parent="1">
+      <mxGeometry x="17" y="400" width="139" height="127" as="geometry" />
+    </mxCell>
+    <mxCell id="10" value="Email&#10;Service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2e6b3e;strokeColor=#ffffff;strokeWidth=3;fontColor=#ffffff;fontSize=10;fontStyle=1;double=1;" vertex="1" parent="1">
+      <mxGeometry x="1241" y="129" width="127" height="89" as="geometry" />
+    </mxCell>
+    <mxCell id="11" value="Payment&#10;Gateway" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2e6b3e;strokeColor=#ffffff;strokeWidth=3;fontColor=#ffffff;fontSize=10;fontStyle=1;double=1;" vertex="1" parent="1">
+      <mxGeometry x="1241" y="411" width="127" height="104" as="geometry" />
+    </mxCell>
+    <mxCell id="12" value="Email&#10;Service" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2e6b3e;strokeColor=#ffffff;strokeWidth=3;fontColor=#ffffff;fontSize=10;fontStyle=1;double=1;" vertex="1" parent="1">
+      <mxGeometry x="1241" y="738" width="127" height="89" as="geometry" />
+    </mxCell>
+    <mxCell id="13" value="D1    Salad Database" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="401" y="183" width="356" height="38" as="geometry" />
+    </mxCell>
+    <mxCell id="14" value="D2    User Account Database" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="926" y="147" width="278" height="38" as="geometry" />
+    </mxCell>
+    <mxCell id="15" value="D3    Shopping Cart" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="301" y="541" width="261" height="38" as="geometry" />
+    </mxCell>
+    <mxCell id="16" value="D4    Order Database" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="462" y="705" width="272" height="38" as="geometry" />
+    </mxCell>
+    <mxCell id="17" value="D5    Address Database" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=9;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="707" y="569" width="261" height="38" as="geometry" />
+    </mxCell>
+    <mxCell id="18" value="Browse Request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="9" target="3" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="174" y="435" />
+          <mxPoint x="174" y="194" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="19" value="Salad Details&#10;(name, ingredients,&#10;nutrition, allergens)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="3" target="9" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="150" y="211" />
+          <mxPoint x="150" y="417" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="20" value="Registration Details /&#10;Login Credentials" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="9" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="69" y="81" />
+          <mxPoint x="823" y="81" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="21" value="Account Confirmation /&#10;Login Status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="4" target="9" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="858" y="46" />
+          <mxPoint x="52" y="46" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="22" value="Add/Remove/&#10;Update Items" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="9" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="23" value="Updated Cart&#10;Contents" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="5" target="9" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="24" value="Salad Info" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="3" target="13" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="25" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="13" target="3" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="26" value="Store/Update&#10;User Info" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="4" target="14" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="27" value="User Details /&#10;Account Status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="14" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="28" value="Verification Email" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="4" target="10" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="29" value="Verification Code&#10;Response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="10" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="30" value="User Authentication&#10;Status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="4" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="823" y="290" />
+          <mxPoint x="742" y="290" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="31" value="Store Cart Items" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="5" target="15" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="32" value="Cart Data" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="15" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="33" value="Delivery Address /&#10;Payment Details" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="5" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="34" value="Payment Request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="6" target="11" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="35" value="Payment Confirmation /&#10;Rejection" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="11" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="36" value="Store Address" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="6" target="17" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="37" value="Saved Addresses" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="17" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="38" value="Confirmed Payment /&#10;Order Details" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="6" target="7" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="701" y="638" />
+          <mxPoint x="400" y="638" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="39" value="Store Order" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="7" target="16" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="40" value="Order Status" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="16" target="7" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="41" value="Order Confirmation&#10;Email" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="7" target="12" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="42" value="Order Status Updates" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="7" target="9" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="116" y="736" />
+          <mxPoint x="116" y="527" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="43" value="Completed&#10;Order Info" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="7" target="8" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="44" value="Update Reward&#10;Points" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="8" target="12" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="45" value="Points Balance /&#10;Free Salad Eligibility" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontSize=8;exitPerimeter=0;entryPerimeter=0;endArrow=open;endSize=10;" edge="1" source="8" target="9" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="812" y="899" />
+          <mxPoint x="104" y="899" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="46" value="&lt;b&gt;FreshBite Salads – Level 1 Data Flow Diagram&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontStyle=1;fontColor=#0a2040;" vertex="1" parent="1">
+      <mxGeometry x="232" y="2" width="928" height="29" as="geometry" />
+    </mxCell>
+  </root>
+</mxGraphModel>
