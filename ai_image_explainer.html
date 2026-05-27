@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Image Processing System — Animated Explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+  padding: 24px;
+  gap: 0;
+}
+
+#page-title {
+  color: #666;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+#player-wrap {
+  position: relative;
+  width: 960px;
+  max-width: 100%;
+  filter: drop-shadow(0 30px 80px rgba(0,0,0,0.7));
+}
+
+#canvas-wrap {
+  position: relative;
+  width: 960px;
+  height: 540px;
+  border-radius: 14px 14px 0 0;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 960px;
+  height: 540px;
+}
+
+#start-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.4s ease;
+  z-index: 10;
+}
+
+#start-overlay.hidden { opacity: 0; pointer-events: none; }
+
+#start-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border: none;
+  color: white;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 16px 48px;
+  border-radius: 50px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 32px rgba(34,197,94,0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+#start-btn:hover { transform: scale(1.06); box-shadow: 0 12px 40px rgba(34,197,94,0.5); }
+
+#start-label {
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+#controls {
+  background: #151525;
+  border-radius: 0 0 14px 14px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 960px;
+  max-width: 100%;
+  border-top: 1px solid #2a2a3e;
+}
+
+#play-btn {
+  background: none;
+  border: 2px solid #22c55e;
+  color: #22c55e;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+#play-btn:hover { background: #22c55e; color: #000; }
+
+#restart-btn {
+  background: none;
+  border: 1px solid #444;
+  color: #888;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+#restart-btn:hover { border-color: #22c55e; color: #22c55e; }
+
+#timeline-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#timeline {
+  width: 100%;
+  height: 5px;
+  background: #2a2a3e;
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+#progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+#scene-label {
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 0.05em;
+}
+
+#time-display {
+  color: #666;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<p id="page-title">AI Image Processing System — Animated Explainer Video</p>
+<div id="player-wrap">
+  <div id="canvas-wrap">
+    <canvas id="canvas" width="960" height="540"></canvas>
+    <div id="start-overlay">
+      <button id="start-btn">▶ &nbsp; Play Animation</button>
+      <p id="start-label">2-minute explainer · AI Image Processing System</p>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="play-btn" title="Play/Pause">▶</button>
+    <div id="timeline-wrap">
+      <div id="timeline"><div id="progress-fill"></div></div>
+      <div id="scene-label">Scene 1 — Introduction</div>
+    </div>
+    <span id="time-display">0:00 / 2:00</span>
+    <button id="restart-btn" title="Restart">↺</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ─── CANVAS SETUP ───────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const W = 960, H = 540;
+const TOTAL  = 120; // seconds
+
+// ─── COLOR PALETTE ──────────────────────────────────────────────
+const C = {
+  bg:       '#a8d4e0',
+  bgDark:   '#8fc4d5',
+  skin:     '#f4a776',
+  hair:     '#5c3317',
+  shirt:    '#5bb8c1',
+  pants:    '#2c1854',
+  shoe:     '#1a0f2e',
+  green:    '#1a7b3d',
+  greenMid: '#2ea04b',
+  greenLt:  '#d4edda',
+  red:      '#cc2200',
+  redLt:    '#ffecec',
+  blue:     '#1a5fa0',
+  blueLt:   '#dbeafe',
+  white:    '#ffffff',
+  black:    '#1a1a1a',
+  gray:     '#666677',
+  bubble:   '#ffffff',
+  thought:  '#f0f8ff',
+  gold:     '#f5c518',
+  ai:       '#7c3aed',
+  aiGlow:   'rgba(124,58,237,0.25)',
+  orange:   '#ea580c',
+};
+
+// ─── MATH HELPERS ───────────────────────────────────────────────
+const clamp  = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp   = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
+const ease   = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // ease-in-out
+const easeOut = t => 1 - (1-clamp(t,0,1)) * (1-clamp(t,0,1));
+const easeIn  = t => clamp(t,0,1) * clamp(t,0,1);
+const spring  = (t, freq=8, decay=6) => Math.exp(-decay*t) * Math.cos(freq*Math.PI*t);
+const bounce  = t => { t = clamp(t,0,1); if(t<0.36) return (t/0.36)**2; if(t<0.73) return 0.75+0.1875*(1-((t-0.545)/0.182)**2); return 0.9375+0.0625*(1-((t-0.909)/0.0909)**2); };
+
+// ─── DRAWING HELPERS ────────────────────────────────────────────
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function pill(ctx, x, y, w, h) { rrect(ctx, x, y, w, h, Math.min(w,h)/2); }
+
+function drawBG(ctx, color, x=0, y=0, w=W, h=H) {
+  ctx.fillStyle = color || C.bg;
+  ctx.fillRect(x, y, w, h);
+}
+
+function fillText(ctx, txt, x, y, size, color, align='center', weight='700', font='Poppins') {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = `${weight} ${size}px '${font}', Arial, sans-serif`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x, y);
+  ctx.restore();
+}
+
+function strokeText2(ctx, txt, x, y, size, fill, stroke, align='center') {
+  ctx.save();
+  ctx.font = `900 ${size}px 'Poppins', Arial, sans-serif`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 4;
+  ctx.strokeText(txt, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(txt, x, y);
+  ctx.restore();
+}
+
+function speechBubble(ctx, x, y, w, h, text, tailDir='right', tailX=null, color=C.white, textColor=C.black, fontSize=18) {
+  const r = 14;
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 2;
+  rrect(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.stroke();
+  // Tail
+  const tx = tailX !== null ? tailX : (tailDir==='right' ? x+w : x);
+  const ty = y + h * 0.65;
+  ctx.beginPath();
+  if (tailDir === 'right') {
+    ctx.moveTo(x+w-25, ty); ctx.lineTo(tx+22, ty+14); ctx.lineTo(x+w-10, ty+2);
+  } else if (tailDir === 'left') {
+    ctx.moveTo(x+25, ty); ctx.lineTo(tx-22, ty+14); ctx.lineTo(x+10, ty+2);
+  } else if (tailDir === 'down') {
+    const mx = x + w/2;
+    ctx.moveTo(mx-12, y+h); ctx.lineTo(mx, y+h+18); ctx.lineTo(mx+12, y+h);
+  }
+  ctx.fillStyle = color;
+  ctx.fill();
+  // Text
+  const lines = Array.isArray(text) ? text : [text];
+  const lh = fontSize * 1.35;
+  const startY = y + h/2 - (lines.length-1)*lh/2;
+  lines.forEach((line, i) => {
+    ctx.fillStyle = textColor;
+    ctx.font = `600 ${fontSize}px 'Poppins', Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(line, x+w/2, startY + i*lh);
+  });
+  ctx.restore();
+}
+
+function thoughtBubble(ctx, cx, cy, w, h, text, textColor=C.black, fontSize=17) {
+  ctx.save();
+  ctx.fillStyle = C.thought;
+  ctx.strokeStyle = '#b8d4e0';
+  ctx.lineWidth = 2;
+  // Main cloud shape
+  const rx = w/2, ry = h/2;
+  const bumps = [
+    {ox: 0,       oy: -ry*0.1, rx: rx*0.75, ry: ry*0.65},
+    {ox: -rx*0.4, oy:  ry*0.1, rx: rx*0.55, ry: ry*0.55},
+    {ox:  rx*0.4, oy:  ry*0.1, rx: rx*0.55, ry: ry*0.55},
+    {ox: -rx*0.1, oy:  ry*0.35, rx: rx*0.6,  ry: ry*0.4},
+  ];
+  bumps.forEach(b => {
+    ctx.beginPath(); ctx.ellipse(cx+b.ox, cy+b.oy, b.rx, b.ry, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  });
+  // Small dots tail (going down-left)
+  [14, 10, 7].forEach((r, i) => {
+    ctx.beginPath(); ctx.arc(cx - rx*0.55 - i*14, cy + ry*0.55 + i*12, r, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  });
+  // Text
+  const lines = Array.isArray(text) ? text : [text];
+  const lh = fontSize * 1.4;
+  const sy = cy - (lines.length-1)*lh/2;
+  lines.forEach((line, i) => {
+    ctx.fillStyle = textColor;
+    ctx.font = `700 ${fontSize}px 'Poppins', Arial, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(line, cx, sy + i*lh);
+  });
+  ctx.restore();
+}
+
+function drawIcon_image(ctx, cx, cy, size, label='IMG', rotation=0) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  const s = size/2;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#aac'; ctx.lineWidth = 2;
+  rrect(ctx, -s*0.85, -s, s*1.7, s*1.85, 6);
+  ctx.fill(); ctx.stroke();
+  // Photo gradient mock
+  const g = ctx.createLinearGradient(-s*0.8, -s*0.9, s*0.8, s*0.1);
+  g.addColorStop(0, '#a8d4e0'); g.addColorStop(1, '#5bb8c1');
+  ctx.fillStyle = g;
+  rrect(ctx, -s*0.72, -s*0.9, s*1.44, s*1.1, 4);
+  ctx.fill();
+  // Sun icon
+  ctx.fillStyle = '#f5c518';
+  ctx.beginPath(); ctx.arc(-s*0.3, -s*0.55, s*0.22, 0, Math.PI*2); ctx.fill();
+  // Mountain
+  ctx.fillStyle = '#2c7a2c';
+  ctx.beginPath(); ctx.moveTo(-s*0.7, s*0.18); ctx.lineTo(-s*0.15, -s*0.55); ctx.lineTo(s*0.3, s*0.18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#3a9a3a';
+  ctx.beginPath(); ctx.moveTo(s*0.0, s*0.18); ctx.lineTo(s*0.5, -s*0.32); ctx.lineTo(s*0.72, s*0.18); ctx.closePath(); ctx.fill();
+  // Label
+  ctx.fillStyle = '#666';
+  ctx.font = `600 ${s*0.38}px 'Poppins', Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label, 0, s*0.75);
+  ctx.restore();
+}
+
+function drawIcon_ai(ctx, cx, cy, size, glowAmt=0) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const s = size/2;
+  if (glowAmt > 0) {
+    ctx.shadowColor = C.ai; ctx.shadowBlur = 30*glowAmt;
+  }
+  // Outer circle
+  ctx.strokeStyle = C.ai; ctx.lineWidth = 3; ctx.fillStyle = '#f5f0ff';
+  ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Brain circuits
+  ctx.strokeStyle = C.ai; ctx.lineWidth = 2.5;
+  // Left hemisphere
+  ctx.beginPath(); ctx.arc(-s*0.15, -s*0.05, s*0.45, Math.PI*0.55, Math.PI*1.7); ctx.stroke();
+  // Right hemisphere
+  ctx.beginPath(); ctx.arc(s*0.15, -s*0.05, s*0.45, Math.PI*1.3, Math.PI*2.45); ctx.stroke();
+  // Center divider
+  ctx.beginPath(); ctx.moveTo(0, -s*0.48); ctx.lineTo(0, s*0.35); ctx.stroke();
+  // Brain folds
+  [[-s*0.35, -s*0.25], [-s*0.35, s*0.1], [s*0.35, -s*0.25], [s*0.35, s*0.1]].forEach(([bx,by]) => {
+    ctx.beginPath(); ctx.arc(bx, by, s*0.13, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(124,58,237,0.15)'; ctx.fill();
+  });
+  // Dots (neurons)
+  [[-s*0.5, -s*0.02],[s*0.5,-s*0.02],[0,-s*0.52],[0,s*0.42]].forEach(([nx,ny]) => {
+    ctx.beginPath(); ctx.arc(nx, ny, 5, 0, Math.PI*2);
+    ctx.fillStyle = C.ai; ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawIcon_text(ctx, cx, cy, size) {
+  ctx.save(); ctx.translate(cx, cy);
+  const s = size/2;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#aac'; ctx.lineWidth = 2;
+  rrect(ctx, -s*0.78, -s, s*1.56, s*2, 7); ctx.fill(); ctx.stroke();
+  // Lines of text
+  [[-s*0.6, -s*0.55, s*1.0], [-s*0.6, -s*0.15, s*0.7],
+   [-s*0.6,  s*0.25, s*0.85],[-s*0.6,  s*0.65, s*0.5]].forEach(([lx,ly,lw]) => {
+    ctx.fillStyle = '#ccd'; pill(ctx, lx, ly-5, lw, 9); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawIcon_magnifier(ctx, cx, cy, size, color=C.ai) {
+  ctx.save(); ctx.translate(cx, cy);
+  const s = size/2;
+  ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.beginPath(); ctx.arc(-s*0.1, -s*0.1, s*0.55, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(s*0.32, s*0.32); ctx.lineTo(s*0.78, s*0.78); ctx.stroke();
+  ctx.restore();
+}
+
+function drawIcon_arrow(ctx, x1, y1, x2, y2, color='#333', width=3, headSize=12) {
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+  const angle = Math.atan2(y2-y1, x2-x1);
+  const len = Math.hypot(x2-x1, y2-y1);
+  ctx.translate(x1, y1); ctx.rotate(angle);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len-headSize, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(len, 0); ctx.lineTo(len-headSize, -headSize*0.6);
+  ctx.lineTo(len-headSize, headSize*0.6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawIcon_check(ctx, cx, cy, size, color=C.greenMid) {
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.strokeStyle = color; ctx.lineWidth = size*0.14; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(-size*0.35, 0); ctx.lineTo(-size*0.05, size*0.35); ctx.lineTo(size*0.38, -size*0.3);
+  ctx.stroke(); ctx.restore();
+}
+
+function drawIcon_cross(ctx, cx, cy, size, color=C.red) {
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.strokeStyle = color; ctx.lineWidth = size*0.14; ctx.lineCap='round';
+  const r = size*0.35;
+  ctx.beginPath(); ctx.moveTo(-r, -r); ctx.lineTo(r, r); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r, -r); ctx.lineTo(-r, r); ctx.stroke();
+  ctx.restore();
+}
+
+function drawScanLine(ctx, progress, x, y, w, h, color='rgba(124,58,237,0.6)') {
+  const yp = y + progress * h;
+  ctx.save();
+  const grd = ctx.createLinearGradient(x, yp-20, x, yp+20);
+  grd.addColorStop(0, 'rgba(124,58,237,0)');
+  grd.addColorStop(0.5, color);
+  grd.addColorStop(1, 'rgba(124,58,237,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(x, yp-20, w, 40);
+  ctx.restore();
+}
+
+function drawGlowCircle(ctx, cx, cy, r, color, alpha=0.35) {
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grd.addColorStop(0, color.replace(')', `,${alpha})`).replace('rgb','rgba'));
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+}
+
+// ─── CHARACTER DRAWING ──────────────────────────────────────────
+// pose: 'neutral'|'thinking'|'waving'|'pointing'|'happy'|'explaining'
+// expr: 'neutral'|'happy'|'worried'|'surprised'
+function drawCharacter(ctx, cx, cy, scale, pose, expr, flipH=false) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (flipH) ctx.scale(-1, 1);
+  ctx.scale(scale, scale);
+
+  const sk=C.skin, hr=C.hair, sh=C.shirt, pt=C.pants, shoe=C.shoe;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath(); ctx.ellipse(0, 148, 42, 9, 0, 0, Math.PI*2); ctx.fill();
+
+  // Shoes
+  ctx.fillStyle = shoe;
+  ctx.beginPath(); ctx.ellipse(-19, 147, 17, 8, 0.15, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(19, 147, 17, 8, -0.15, 0, Math.PI*2); ctx.fill();
+
+  // Legs
+  ctx.fillStyle = pt;
+  rrect(ctx, -32, 80, 26, 72, 12); ctx.fill();
+  rrect(ctx, 6,  80, 26, 72, 12); ctx.fill();
+
+  // Body
+  ctx.fillStyle = sh;
+  rrect(ctx, -42, 18, 84, 72, 20); ctx.fill();
+
+  // Belt line
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(-42, 80, 84, 6);
+
+  // Shirt collar V
+  ctx.strokeStyle = '#3a9aaa'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-9, 18); ctx.lineTo(0, 36); ctx.lineTo(9, 18); ctx.stroke();
+
+  // Arms - depends on pose
+  if (pose === 'neutral' || pose === 'explaining') {
+    // Both arms mostly down, slight angle
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(-41, 28); ctx.rotate(0.08);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(-44, 87, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(41, 28); ctx.rotate(-0.08);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    if (pose === 'explaining') {
+      // Right hand slightly raised
+      ctx.save(); ctx.translate(42, 22); ctx.rotate(-0.5);
+      ctx.fillStyle = sh; rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.ellipse(65, 10, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.ellipse(44, 87, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    }
+  } else if (pose === 'thinking') {
+    // Left arm down
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(-41, 28); ctx.rotate(0.08);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(-44, 87, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Right arm bent up to chin
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(41, 28); ctx.rotate(-0.7);
+    rrect(ctx, -11, 0, 22, 42, 11); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(26, 10); ctx.rotate(0.35);
+    rrect(ctx, -10, 0, 20, 38, 10); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(22, -8, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+  } else if (pose === 'waving') {
+    // Left arm down
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(-41, 28); ctx.rotate(0.08);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(-44, 87, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Right arm raised and out
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(41, 28); ctx.rotate(-1.15);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(78, -14, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Fingers spread
+    ctx.strokeStyle = sk; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    [[78-8,-24],[78,-28],[78+8,-24],[78+14,-16]].forEach(([fx,fy]) => {
+      ctx.beginPath(); ctx.moveTo(78, -14); ctx.lineTo(fx, fy); ctx.stroke();
+    });
+  } else if (pose === 'pointing') {
+    // Left arm down
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(-41, 28); ctx.rotate(0.08);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(-44, 87, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Right arm extended pointing right
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(41, 38); ctx.rotate(-0.3);
+    rrect(ctx, -11, 0, 22, 55, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(90, 30, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Pointing finger
+    ctx.strokeStyle = sk; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(90, 30); ctx.lineTo(106, 22); ctx.stroke();
+  } else if (pose === 'happy') {
+    // Both arms slightly out to sides, celebrating
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(-41, 28); ctx.rotate(0.45);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(-72, 64, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = sh;
+    ctx.save(); ctx.translate(41, 28); ctx.rotate(-0.45);
+    rrect(ctx, -11, 0, 22, 56, 11); ctx.fill(); ctx.restore();
+    ctx.fillStyle = sk;
+    ctx.beginPath(); ctx.ellipse(72, 64, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Neck
+  ctx.fillStyle = sk;
+  rrect(ctx, -14, 5, 28, 20, 8); ctx.fill();
+
+  // Head
+  ctx.fillStyle = sk;
+  ctx.beginPath(); ctx.arc(0, -20, 37, 0, Math.PI*2); ctx.fill();
+
+  // Hair back
+  ctx.fillStyle = hr;
+  ctx.beginPath(); ctx.arc(0, -27, 38, Math.PI, Math.PI*2); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -28, 38, 26, 0, Math.PI, Math.PI*2); ctx.fill();
+
+  // Side hair strands
+  ctx.fillStyle = hr;
+  ctx.save(); ctx.translate(-33, -28); ctx.rotate(0.12);
+  rrect(ctx, -8, 0, 15, 65, 7); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(33, -28); ctx.rotate(-0.12);
+  rrect(ctx, -7, 0, 15, 65, 7); ctx.fill(); ctx.restore();
+
+  // Ears
+  ctx.fillStyle = sk;
+  ctx.beginPath(); ctx.ellipse(-37, -18, 7, 9, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(37, -18, 7, 9, 0, 0, Math.PI*2); ctx.fill();
+
+  // Eye whites
+  ctx.fillStyle = 'white';
+  ctx.beginPath(); ctx.ellipse(-13, -22, 9, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(13, -22, 9, 8, 0, 0, Math.PI*2); ctx.fill();
+
+  // Iris
+  ctx.fillStyle = '#4a3520';
+  ctx.beginPath(); ctx.arc(-13, -21, 5.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(13, -21, 5.5, 0, Math.PI*2); ctx.fill();
+
+  // Pupils
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(-12, -20, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(14, -20, 3, 0, Math.PI*2); ctx.fill();
+
+  // Highlights
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(-11, -22, 1.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(15, -22, 1.8, 0, Math.PI*2); ctx.fill();
+
+  // Eyebrows
+  ctx.strokeStyle = hr; ctx.lineWidth = 2.8; ctx.lineCap='round';
+  if (expr === 'worried') {
+    ctx.beginPath(); ctx.moveTo(-22,-35); ctx.quadraticCurveTo(-13,-30,-5,-34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5,-34); ctx.quadraticCurveTo(13,-30,22,-35); ctx.stroke();
+  } else if (expr === 'happy' || expr === 'surprised') {
+    ctx.beginPath(); ctx.moveTo(-22,-36); ctx.quadraticCurveTo(-13,-40,-5,-36); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5,-36); ctx.quadraticCurveTo(13,-40,22,-36); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(-22,-33); ctx.lineTo(-5,-31); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5,-31); ctx.lineTo(22,-33); ctx.stroke();
+  }
+
+  // Nose
+  ctx.strokeStyle = '#d4885f'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-3,-13); ctx.quadraticCurveTo(5,-9,3,-13); ctx.stroke();
+
+  // Mouth
+  ctx.strokeStyle = '#c96650'; ctx.lineWidth = 2.5; ctx.lineCap='round';
+  if (expr === 'happy') {
+    ctx.beginPath(); ctx.arc(0,-7,13,0.15,Math.PI-0.15); ctx.stroke();
+    // Teeth strip
+    ctx.fillStyle = 'white';
+    ctx.save(); ctx.beginPath(); ctx.arc(0,-7,12,0.2,Math.PI-0.2); ctx.clip();
+    ctx.fillRect(-13,-7,26,8); ctx.restore();
+  } else if (expr === 'worried') {
+    ctx.beginPath(); ctx.arc(0,-2,10,Math.PI+0.25,-0.25); ctx.stroke();
+  } else if (expr === 'surprised') {
+    ctx.strokeStyle='none';
+    ctx.fillStyle='#c96650';
+    ctx.beginPath(); ctx.ellipse(0,-5,6,8,0,0,Math.PI*2); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(0,-5,11,0.2,Math.PI-0.2); ctx.stroke();
+  }
+
+  // Blush
+  ctx.fillStyle = 'rgba(255,145,120,0.28)';
+  ctx.beginPath(); ctx.ellipse(-25,-10,9,5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(25,-10,9,5,0,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+// ─── SCENE UTILITIES ────────────────────────────────────────────
+function fadeAlpha(t, inDur, outStart, outDur=1) {
+  if (t < inDur) return ease(t / inDur);
+  if (t < outStart) return 1;
+  return 1 - ease((t - outStart) / outDur);
+}
+
+function slide(t, dur, from, to) {
+  return lerp(from, to, easeOut(clamp(t/dur, 0, 1)));
+}
+
+// Animated counter / typewriter for a label
+function floatY(t, amp=8, freq=1.5) {
+  return Math.sin(t * freq * Math.PI * 2) * amp;
+}
+
+// Draw tag/label badge
+function drawBadge(ctx, x, y, w, h, text, bg, fg, fontSize=18) {
+  ctx.save();
+  ctx.fillStyle = bg;
+  rrect(ctx, x, y, w, h, h/2); ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.font = `700 ${fontSize}px 'Poppins', Arial`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x+w/2, y+h/2);
+  ctx.restore();
+}
+
+// ─── SCENES ─────────────────────────────────────────────────────
+// Each scene: { id, label, start, end, draw(ctx, t, p) }
+// t = seconds within scene, p = 0-1 progress within scene
+
+const SCENES = [
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 1: TITLE (0-8s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's1', label: 'Introduction', start: 0, end: 8,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+      // Decorative bg circles
+      ctx.save(); ctx.globalAlpha = 0.07;
+      ctx.fillStyle = '#5bb8c1';
+      ctx.beginPath(); ctx.arc(120, 100, 180, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(840, 440, 200, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 0.05;
+      ctx.fillStyle = C.ai;
+      ctx.beginPath(); ctx.arc(900, 80, 150, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Floating icons
+      const flt = floatY(t, 12, 0.8);
+      const a1 = easeOut(clamp(t/2, 0, 1));
+      ctx.save(); ctx.globalAlpha = a1;
+      drawIcon_image(ctx, 130+Math.sin(t*0.7)*6, 175+flt, 90);
+      drawIcon_text(ctx, 830+Math.sin(t*0.6+1)*5, 160+floatY(t,10,0.9), 80);
+      drawIcon_magnifier(ctx, 100+Math.sin(t*0.5+2)*5, 400+floatY(t,8,1.1), 70);
+      drawIcon_ai(ctx, 860+Math.sin(t*0.8+0.5)*6, 400+floatY(t,9,0.7), 80, 0.6+0.4*Math.sin(t));
+      ctx.restore();
+
+      // Main title block
+      const ty = slide(t, 1.2, H/2+60, H/2-30);
+      const ta = easeOut(clamp(t/1.2, 0, 1));
+      ctx.save(); ctx.globalAlpha = ta;
+
+      // Background pill for subtitle
+      const sub2a = easeOut(clamp((t-1.8)/1.2, 0, 1));
+
+      // Main heading
+      strokeText2(ctx, 'AI IMAGE', W/2, ty - 48, 68, C.black, '#8fc4d5');
+      strokeText2(ctx, 'PROCESSING', W/2, ty + 10, 68, C.green, '#8fc4d5');
+      strokeText2(ctx, 'SYSTEM', W/2, ty + 68, 68, C.ai, '#8fc4d5');
+
+      ctx.restore();
+
+      ctx.save(); ctx.globalAlpha = sub2a;
+      ctx.fillStyle = C.black;
+      ctx.font = `400 22px 'Poppins', Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('Smart Enhancement · Text Recognition · Intelligent Resize', W/2, ty+118);
+      ctx.restore();
+
+      // Line under title
+      if (t > 2) {
+        const lw = lerp(0, 320, easeOut(clamp((t-2)/1.5, 0, 1)));
+        ctx.fillStyle = C.green;
+        ctx.fillRect(W/2-lw/2, ty+95, lw, 4);
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 2: MEET ALEX (8-20s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's2', label: 'Meet Alex — The User', start: 8, end: 20,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Character slides in from left
+      const cx = slide(t, 1.5, -120, 230);
+      const ca = easeOut(clamp(t/1.5, 0, 1));
+      ctx.save(); ctx.globalAlpha = ca;
+      drawCharacter(ctx, cx, 380, 1.1, 'waving', 'happy');
+      ctx.restore();
+
+      // Floating tech items
+      const flt = floatY(t, 10, 0.9);
+      if (t > 1.5) {
+        const ia = easeOut(clamp((t-1.5)/1.2, 0, 1));
+        ctx.save(); ctx.globalAlpha = ia;
+        drawIcon_image(ctx, 90+Math.sin(t*0.6)*5, 145+flt, 85, 'JPG');
+        drawIcon_image(ctx, 160+Math.sin(t*0.7+1)*4, 240+floatY(t,8,1.1), 70, 'PNG');
+        drawIcon_text(ctx, 90+Math.sin(t*0.5+2)*5, 355+floatY(t,9,0.7), 70);
+        ctx.restore();
+      }
+
+      // "MEET ALEX" text block on the right
+      const tx = slide(t, 1.8, W+100, 560);
+      const tta = easeOut(clamp(t/1.8, 0, 1));
+      ctx.save(); ctx.globalAlpha = tta;
+
+      fillText(ctx, 'MEET', tx, 205, 32, C.black, 'center', '700');
+      strokeText2(ctx, 'ALEX', tx, 260, 82, C.green, '#8fc4d5');
+
+      // subtitle
+      if (t > 1.5) {
+        const sa = easeOut(clamp((t-1.5)/1.2, 0, 1));
+        ctx.globalAlpha = sa;
+        fillText(ctx, 'like you, he has lots of', tx, 320, 22, C.black, 'center', '400');
+        fillText(ctx, 'images to process', tx, 348, 22, C.black, 'center', '400');
+      }
+      if (t > 3) {
+        const ba = easeOut(clamp((t-3)/1, 0, 1));
+        ctx.globalAlpha = ba;
+        drawBadge(ctx, tx-130, 380, 260, 48, 'a researcher / student', C.green, 'white', 18);
+      }
+      ctx.restore();
+
+      // Pointer stick in character's hand area
+      if (t > 2) {
+        const pa = easeOut(clamp((t-2)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = pa * 0.7;
+        ctx.strokeStyle = '#5c3317'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(288, 215); ctx.lineTo(420, 300); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 3: THE CHALLENGE (20-35s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's3', label: 'The Challenge', start: 20, end: 35,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Character (thinking pose)
+      drawCharacter(ctx, 230, 390, 1.1, 'thinking', 'worried');
+
+      // Thought bubbles appear one by one
+      const bubbles = [
+        { x: 420, y:  65, w:200, h:115, text: ['Which images', 'have TEXT?'],   delay: 0.3,  color: C.red },
+        { x: 680, y:  80, w:180, h:115, text: ['How to', 'ENHANCE?'],            delay: 1.0,  color: C.blue },
+        { x: 108, y:  70, w:175, h:105, text: ['Need to', 'RESIZE?'],             delay: 1.8,  color: C.green },
+        { x: 680, y: 240, w:195, h:115, text: ['EXTRACT', 'text safely?'],        delay: 2.6,  color: C.orange },
+        { x: 100, y: 220, w:185, h:105, text: ['Manual work', 'takes HOURS!'],    delay: 3.4,  color: '#6b21a8' },
+      ];
+
+      bubbles.forEach(b => {
+        const ba = easeOut(clamp((t - b.delay)/0.8, 0, 1));
+        if (ba <= 0) return;
+        const ox = b.x + b.w/2, oy = b.y + b.h/2;
+        const sc = lerp(0.3, 1, ba);
+        ctx.save();
+        ctx.globalAlpha = ba;
+        ctx.translate(ox, oy);
+        ctx.scale(sc, sc);
+        ctx.translate(-ox, -oy);
+        thoughtBubble(ctx, ox, oy, b.w, b.h, b.text, b.color, 17);
+        ctx.restore();
+      });
+
+      // Main text on right
+      if (t > 1) {
+        const ta = easeOut(clamp((t-1)/1, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        fillText(ctx, 'And like Alex,', 595, 360, 26, C.black, 'center', '400');
+        strokeText2(ctx, 'ALEX', 595, 410, 54, C.green, '#8fc4d5');
+        fillText(ctx, 'struggles with', 595, 455, 26, C.red, 'center', '600');
+        fillText(ctx, 'image processing', 595, 488, 26, C.red, 'center', '600');
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 4: AI SOLUTION INTRO (35-50s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's4', label: 'The AI Solution', start: 35, end: 50,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Glow behind AI icon
+      const pulse = 0.5 + 0.5*Math.sin(t*3);
+      drawGlowCircle(ctx, W/2, H/2-50, 200, 'rgb(124,58,237)', 0.15 + 0.1*pulse);
+
+      // AI icon (big, centered)
+      if (t < 2) {
+        const s = lerp(0, 170, bounce(t/2));
+        drawIcon_ai(ctx, W/2, H/2-60, s, pulse);
+      } else {
+        // Move AI icon to top, bring text in
+        const iy = slide(t-2, 1.2, H/2-60, 120);
+        const is = lerp(170, 120, easeOut(clamp((t-2)/1.2, 0, 1)));
+        drawIcon_ai(ctx, W/2, iy, is, pulse);
+
+        // "Introducing..." text
+        if (t > 2.5) {
+          const ta = easeOut(clamp((t-2.5)/0.8, 0, 1));
+          ctx.save(); ctx.globalAlpha = ta;
+          fillText(ctx, 'Introducing...', W/2, 230, 28, C.gray, 'center', '400');
+          ctx.restore();
+        }
+        if (t > 3.2) {
+          const ta = easeOut(clamp((t-3.2)/0.8, 0, 1));
+          ctx.save(); ctx.globalAlpha = ta;
+          strokeText2(ctx, 'THE AI IMAGE', W/2, 290, 48, C.black, '#8fc4d5');
+          strokeText2(ctx, 'PROCESSING SYSTEM', W/2, 348, 48, C.ai, '#8fc4d5');
+          ctx.restore();
+        }
+        if (t > 4.5) {
+          const ta = easeOut(clamp((t-4.5)/0.8, 0, 1));
+          ctx.save(); ctx.globalAlpha = ta;
+          // Three feature pills
+          const features = [
+            { label: '🔍  Text Detection',  bg: '#e0e7ff', fg: C.ai,   x: W/2-340 },
+            { label: '✨  Enhancement',      bg: C.greenLt, fg: C.green, x: W/2-95  },
+            { label: '↔  Smart Resize',     bg: '#fff7ed', fg: C.orange,x: W/2+150 },
+          ];
+          features.forEach(f => {
+            ctx.fillStyle = f.bg;
+            rrect(ctx, f.x, 400, 185, 46, 12); ctx.fill();
+            ctx.fillStyle = f.fg;
+            ctx.font = `600 16px 'Poppins', Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(f.label, f.x+92, 423);
+          });
+          ctx.restore();
+        }
+        if (t > 6) {
+          const ta = easeOut(clamp((t-6)/0.8, 0, 1));
+          ctx.save(); ctx.globalAlpha = ta;
+          drawBadge(ctx, W/2-130, 466, 260, 44, 'SMART · FAST · ACCURATE', C.green, 'white', 17);
+          ctx.restore();
+        }
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 5: HOW IT WORKS – UPLOAD (50-65s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's5', label: 'Step 1 — Upload Your Image', start: 50, end: 65,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Character on the left (explaining)
+      drawCharacter(ctx, 175, 390, 0.95, 'pointing', 'neutral');
+
+      // Step badge
+      const ba = easeOut(clamp(t/0.8, 0, 1));
+      ctx.save(); ctx.globalAlpha = ba;
+      drawBadge(ctx, 280, 30, 180, 38, 'STEP 1 OF 3', C.ai, 'white', 15);
+      ctx.restore();
+
+      // Main text
+      if (t > 0.8) {
+        const ta = easeOut(clamp((t-0.8)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        fillText(ctx, 'Upload Your Image', W/2+100, 110, 36, C.black, 'center', '700');
+        fillText(ctx, 'Any format — JPG, PNG, BMP, TIFF…', W/2+100, 150, 20, C.gray, 'center', '400');
+        ctx.restore();
+      }
+
+      // Large image icon coming in
+      const imgX = slide(t, 1.5, -100, W/2+60);
+      ctx.save(); ctx.globalAlpha = easeOut(clamp(t/1.5, 0, 1));
+      drawIcon_image(ctx, imgX, 290, 160, 'YOUR\nIMAGE');
+      ctx.restore();
+
+      // Upload arrow pointing into "AI box"
+      if (t > 2) {
+        const aa = easeOut(clamp((t-2)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = aa;
+        // AI processing box on right
+        ctx.fillStyle = '#e0e7ff'; ctx.strokeStyle = C.ai; ctx.lineWidth = 3;
+        rrect(ctx, 750, 215, 160, 150, 16); ctx.fill(); ctx.stroke();
+        drawIcon_ai(ctx, 830, 290, 100, 0.7);
+        fillText(ctx, 'AI SYSTEM', 830, 355, 14, C.ai, 'center', '700');
+        // Arrow from image to box
+        drawIcon_arrow(ctx, imgX+85, 290, 745, 290, C.ai, 3, 14);
+        ctx.restore();
+      }
+
+      // Uploading progress bar
+      if (t > 3.5) {
+        const uploadP = clamp((t-3.5)/2, 0, 1);
+        ctx.save(); ctx.globalAlpha = easeOut(clamp((t-3.5)/0.5, 0, 1));
+        ctx.fillStyle = '#dde'; rrect(ctx, 300, 440, 380, 20, 10); ctx.fill();
+        ctx.fillStyle = C.ai; rrect(ctx, 300, 440, 380*uploadP, 20, 10); ctx.fill();
+        fillText(ctx, Math.round(uploadP*100)+'%', 490, 475, 16, C.ai, 'center', '700');
+        fillText(ctx, 'Uploading…', 490, 500, 15, C.gray, 'center', '400');
+        ctx.restore();
+      }
+
+      if (t > 6) {
+        const ta = easeOut(clamp((t-6)/0.7, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        speechBubble(ctx, 280, 200, 220, 80, ['Image received!', 'Analyzing now…'], 'right', null, '#e0ffe7', C.green, 17);
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 6: AI SCANNING / ANALYSIS (65-80s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's6', label: 'Step 2 — AI Analysis', start: 65, end: 80,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Step badge
+      drawBadge(ctx, 30, 30, 180, 38, 'STEP 2 OF 3', C.ai, 'white', 15);
+
+      // Title
+      if (t > 0.4) {
+        const ta = easeOut(clamp((t-0.4)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        fillText(ctx, 'AI Analyses Your Image', W/2, 95, 36, C.black, 'center', '700');
+        fillText(ctx, 'Deep learning scans every pixel…', W/2, 132, 20, C.gray, 'center', '400');
+        ctx.restore();
+      }
+
+      // Image being scanned (center)
+      const imgCX = W/2 - 10;
+      const imgA = easeOut(clamp(t/1, 0, 1));
+      ctx.save(); ctx.globalAlpha = imgA;
+
+      // Image frame
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#b0c8d8'; ctx.lineWidth = 3;
+      rrect(ctx, imgCX-120, 170, 240, 200, 10); ctx.fill(); ctx.stroke();
+
+      // Fake image content inside
+      const grd = ctx.createLinearGradient(imgCX-110, 180, imgCX+110, 360);
+      grd.addColorStop(0, '#a8d4e0'); grd.addColorStop(1, '#7ab8cc');
+      ctx.fillStyle = grd; rrect(ctx, imgCX-112, 178, 224, 184, 6); ctx.fill();
+      // Image elements
+      ctx.fillStyle = '#f5c518'; ctx.beginPath(); ctx.arc(imgCX-55, 215, 20, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#2c7a2c'; ctx.beginPath(); ctx.moveTo(imgCX-105,360); ctx.lineTo(imgCX-40,235); ctx.lineTo(imgCX+10,360); ctx.closePath(); ctx.fill();
+      // Fake text lines in image
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; rrect(ctx, imgCX-10, 195, 110, 14, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; rrect(ctx, imgCX-10, 218, 85, 10, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; rrect(ctx, imgCX-10, 236, 95, 10, 3); ctx.fill();
+
+      ctx.restore();
+
+      // Scan line animation
+      if (t > 0.8) {
+        const scanT = ((t - 0.8) * 0.6) % 1;
+        drawScanLine(ctx, scanT, imgCX-120, 170, 240, 200);
+        // Glow on edges during scan
+        ctx.save(); ctx.globalAlpha = 0.5 + 0.4*Math.sin(t*4);
+        ctx.strokeStyle = C.ai; ctx.lineWidth = 2;
+        rrect(ctx, imgCX-120, 170, 240, 200, 10); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Detection boxes appearing
+      if (t > 2) {
+        const ba = easeOut(clamp((t-2)/0.6, 0, 1));
+        ctx.save(); ctx.globalAlpha = ba;
+        // Box around text area
+        ctx.strokeStyle = C.red; ctx.lineWidth = 2.5; ctx.setLineDash([5,4]);
+        ctx.strokeRect(imgCX-8, 192, 116, 58);
+        ctx.setLineDash([]);
+        // Label
+        ctx.fillStyle = C.red; rrect(ctx, imgCX-8, 178, 72, 18, 4); ctx.fill();
+        ctx.fillStyle = 'white'; ctx.font='bold 11px Arial'; ctx.textAlign='center';
+        ctx.fillText('TEXT AREA', imgCX+28, 189);
+        ctx.restore();
+      }
+
+      // AI analysis bullets on right
+      const bullets = [
+        { icon: '🔍', text: 'Scanning image pixels', delay: 1.2 },
+        { icon: '🤖', text: 'Running OCR detection', delay: 2.2 },
+        { icon: '✅', text: 'Text regions found!',  delay: 3.2 },
+      ];
+      bullets.forEach((b, i) => {
+        if (t < b.delay) return;
+        const ba = easeOut(clamp((t-b.delay)/0.6, 0, 1));
+        ctx.save(); ctx.globalAlpha = ba;
+        const bx = imgCX+155, by = 200 + i*70;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)'; rrect(ctx, bx, by, 200, 50, 10); ctx.fill();
+        ctx.font = '22px Arial'; ctx.textAlign='left'; ctx.textBaseline='middle';
+        ctx.fillText(b.icon, bx+12, by+25);
+        ctx.fillStyle = C.black; ctx.font = `600 15px 'Poppins', Arial`; ctx.textAlign='left';
+        ctx.fillText(b.text, bx+44, by+25);
+        ctx.restore();
+      });
+
+      // Binary/code particles bg
+      ctx.save(); ctx.globalAlpha = 0.06;
+      ctx.fillStyle = C.ai; ctx.font = '11px monospace';
+      const bits = ['01','10','AI','ML','1','0','11','00'];
+      for (let i = 0; i < 28; i++) {
+        const bx = 20 + (i*42 + t*15) % (W-40);
+        const by = 30 + (i*71 + t*8) % (H-60);
+        ctx.fillText(bits[i%bits.length], bx, by);
+      }
+      ctx.restore();
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 7: DECISION BRANCH (80-92s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's7', label: 'Intelligent Decision Engine', start: 80, end: 92,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Title
+      const ta = easeOut(clamp(t/0.8, 0, 1));
+      ctx.save(); ctx.globalAlpha = ta;
+      fillText(ctx, 'Intelligent Decision Engine', W/2, 50, 32, C.black, 'center', '700');
+      ctx.restore();
+
+      // Central AI box (appears immediately)
+      {
+        const ca = easeOut(clamp(t/0.6, 0, 1));
+        ctx.save(); ctx.globalAlpha = ca;
+        const pulse = 0.5 + 0.5*Math.sin(t*3);
+        ctx.fillStyle = '#e0e7ff'; ctx.strokeStyle = C.ai; ctx.lineWidth = 3;
+        rrect(ctx, W/2-80, H/2-55, 160, 110, 16); ctx.fill(); ctx.stroke();
+        drawIcon_ai(ctx, W/2, H/2, 90, pulse);
+        ctx.restore();
+      }
+
+      // Image coming in from left (starts immediately)
+      {
+        const ix = slide(t, 1.0, 50, W/2-130);
+        ctx.save(); ctx.globalAlpha = easeOut(clamp(t/1.0, 0, 1));
+        drawIcon_image(ctx, ix, H/2, 90);
+        if (t > 1.2) {
+          drawIcon_arrow(ctx, ix+50, H/2, W/2-88, H/2, C.ai, 3);
+        }
+        ctx.restore();
+      }
+
+      // "TEXT DETECTED?" diamond question (appears at t > 1.0)
+      if (t > 1.0) {
+        const qa = easeOut(clamp((t-1.0)/0.7, 0, 1));
+        ctx.save(); ctx.globalAlpha = qa;
+        // Arrow down from AI box
+        drawIcon_arrow(ctx, W/2, H/2+56, W/2, H/2+98, C.ai, 3);
+        // Diamond shape
+        const dx = W/2, dy = H/2+140, ds=55;
+        ctx.fillStyle = '#fff3cd'; ctx.strokeStyle = C.gold; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(dx, dy-ds); ctx.lineTo(dx+ds*1.6, dy); ctx.lineTo(dx, dy+ds); ctx.lineTo(dx-ds*1.6, dy); ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        fillText(ctx, 'TEXT', dx, dy-14, 16, C.black, 'center', '700');
+        fillText(ctx, 'FOUND?', dx, dy+8, 16, C.black, 'center', '700');
+        ctx.restore();
+      }
+
+      // YES branch (right) - appears at t > 1.8
+      if (t > 1.8) {
+        const ya = easeOut(clamp((t-1.8)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ya;
+        const ybx = W/2+155, yby = H/2+140;
+        drawIcon_arrow(ctx, W/2+89, H/2+140, ybx, yby, C.green, 3);
+        ctx.fillStyle = C.greenLt; ctx.strokeStyle = C.green; ctx.lineWidth = 2.5;
+        rrect(ctx, ybx, yby-55, 200, 110, 14); ctx.fill(); ctx.stroke();
+        fillText(ctx, '✅  YES', ybx+100, yby-28, 18, C.green, 'center', '700');
+        fillText(ctx, 'Enhance Image', ybx+100, yby+2, 16, C.black, 'center', '600');
+        fillText(ctx, '+ Extract Text', ybx+100, yby+24, 16, C.black, 'center', '600');
+        ctx.restore();
+      }
+
+      // NO branch (left) - appears at t > 2.5
+      if (t > 2.5) {
+        const na = easeOut(clamp((t-2.5)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = na;
+        const nbx = W/2-355, nby = H/2+140;
+        drawIcon_arrow(ctx, W/2-89, H/2+140, nbx+200, nby, C.blue, 3);
+        ctx.fillStyle = C.blueLt; ctx.strokeStyle = C.blue; ctx.lineWidth = 2.5;
+        rrect(ctx, nbx, nby-55, 200, 110, 14); ctx.fill(); ctx.stroke();
+        fillText(ctx, '❌  NO', nbx+100, nby-28, 18, C.blue, 'center', '700');
+        fillText(ctx, 'Normal Resize', nbx+100, nby+2, 16, C.black, 'center', '600');
+        fillText(ctx, '& Optimise', nbx+100, nby+24, 16, C.black, 'center', '600');
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 8: TEXT PATH — ENHANCE + EXTRACT (92-107s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's8', label: 'Text Found — Enhance & Extract', start: 92, end: 107,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Step badge
+      drawBadge(ctx, 30, 30, 220, 38, '✅  TEXT DETECTED', C.green, 'white', 15);
+
+      // Title
+      if (t > 0.3) {
+        const ta = easeOut(clamp((t-0.3)/0.7, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        fillText(ctx, 'AI Enhances & Extracts Text', W/2, 95, 34, C.black, 'center', '700');
+        ctx.restore();
+      }
+
+      // Before/After image panels
+      const panelA = easeOut(clamp(t/0.8, 0, 1));
+      ctx.save(); ctx.globalAlpha = panelA;
+
+      // BEFORE panel
+      const bx = 100, by = 150, bw = 310, bh = 230;
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2;
+      rrect(ctx, bx, by, bw, bh, 10); ctx.fill(); ctx.stroke();
+      // Dark, low-contrast "before" image
+      const bg1 = ctx.createLinearGradient(bx, by, bx+bw, by+bh);
+      bg1.addColorStop(0, '#8aa8b8'); bg1.addColorStop(1, '#6a8898');
+      ctx.fillStyle = bg1; rrect(ctx, bx+8, by+35, bw-16, bh-60, 6); ctx.fill();
+      // Blurry/dim text lines
+      ctx.fillStyle = 'rgba(180,180,180,0.5)';
+      [[bx+20,by+55,200,12],[bx+20,by+78,160,10],[bx+20,by+100,180,10]].forEach(([lx,ly,lw,lh]) => {
+        rrect(ctx, lx, ly, lw, lh, 4); ctx.fill();
+      });
+      ctx.fillStyle = C.black; ctx.font='bold 14px Poppins,Arial'; ctx.textAlign='center';
+      ctx.fillText('BEFORE', bx+bw/2, by+bh-12);
+      ctx.fillStyle = C.red; ctx.font='13px Poppins,Arial';
+      ctx.fillText('Low quality · Text unclear', bx+bw/2, by+18);
+
+      // AFTER panel
+      const ax = bx+bw+40, ay = by;
+      if (t > 1.5) {
+        const aap = easeOut(clamp((t-1.5)/1, 0, 1));
+        ctx.save(); ctx.globalAlpha = aap;
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = C.green; ctx.lineWidth = 3;
+        rrect(ctx, ax, ay, bw, bh, 10); ctx.fill(); ctx.stroke();
+        // Glow effect
+        ctx.shadowColor = C.greenMid; ctx.shadowBlur = 16*aap;
+        rrect(ctx, ax, ay, bw, bh, 10); ctx.stroke();
+        ctx.shadowBlur = 0;
+        // Bright enhanced image
+        const bg2 = ctx.createLinearGradient(ax, ay, ax+bw, ay+bh);
+        bg2.addColorStop(0, '#c8eef8'); bg2.addColorStop(1, '#a0d8ec');
+        ctx.fillStyle = bg2; rrect(ctx, ax+8, ay+35, bw-16, bh-60, 6); ctx.fill();
+        // Clear text lines (enhanced)
+        ctx.fillStyle = 'rgba(30,30,80,0.85)';
+        [[ax+20,ay+55,200,12],[ax+20,ay+78,160,10],[ax+20,ay+100,180,10]].forEach(([lx,ly,lw,lh]) => {
+          rrect(ctx, lx, ly, lw, lh, 4); ctx.fill();
+        });
+        // Text detection boxes
+        ctx.strokeStyle = C.red; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+        ctx.strokeRect(ax+18, ay+52, 205, 62); ctx.setLineDash([]);
+        ctx.fillStyle = C.green; ctx.font='bold 14px Poppins,Arial'; ctx.textAlign='center';
+        ctx.fillText('AFTER', ax+bw/2, ay+bh-12);
+        ctx.fillStyle = C.green; ctx.font='13px Poppins,Arial';
+        ctx.fillText('Enhanced · Text detected', ax+bw/2, ay+18);
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // Arrow between panels
+      if (t > 2) {
+        const aa = easeOut(clamp((t-2)/0.5, 0, 1));
+        ctx.save(); ctx.globalAlpha = aa;
+        // Sparkle arrow
+        ctx.fillStyle = C.green; ctx.strokeStyle = C.green; ctx.lineWidth = 3;
+        drawIcon_arrow(ctx, bx+bw+8, by+bh/2, ax-8, by+bh/2, C.green, 4);
+        fillText(ctx, '✨ AI Enhance', bx+bw+22, by+bh/2-22, 14, C.green, 'center', '700');
+        ctx.restore();
+      }
+
+      // Extracted text panel at bottom
+      if (t > 3.5) {
+        const ea = easeOut(clamp((t-3.5)/1, 0, 1));
+        ctx.save(); ctx.globalAlpha = ea;
+        ctx.fillStyle = '#1a1a2e'; rrect(ctx, 100, 405, bw*2+40, 100, 12); ctx.fill();
+        ctx.fillStyle = C.greenMid; ctx.font='bold 14px Poppins,Arial'; ctx.textAlign='left';
+        ctx.fillText('📄  EXTRACTED TEXT OUTPUT:', 120, 430);
+        ctx.fillStyle = '#a0f0c0'; ctx.font='15px monospace';
+        const extractedLines = [
+          'Invoice #4521  Date: 2024-01-15',
+          'Total Amount: $2,450.00  | Status: PAID',
+        ];
+        extractedLines.forEach((line, i) => ctx.fillText(line, 120, 460 + i*20));
+        // Blinking cursor
+        if (Math.floor(t*2) % 2 === 0) {
+          ctx.fillStyle = '#a0f0c0';
+          ctx.fillRect(120 + ctx.measureText(extractedLines[1]).width, 456, 10, 16);
+        }
+        ctx.restore();
+      }
+
+      // Character on right (happy/surprised)
+      if (t > 4) {
+        const ca = easeOut(clamp((t-4)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ca;
+        drawCharacter(ctx, 870, 390, 0.85, 'happy', 'happy');
+        speechBubble(ctx, 680, 200, 190, 70, ['Text extracted', 'perfectly! 🎉'], 'right', null, '#e0ffe7', C.green, 16);
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 9: NO TEXT PATH — SMART RESIZE (107-115s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's9', label: 'No Text — Smart Resize', start: 107, end: 115,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      drawBadge(ctx, 30, 30, 210, 38, '❌  NO TEXT FOUND', C.blue, 'white', 15);
+
+      if (t > 0.3) {
+        const ta = easeOut(clamp((t-0.3)/0.7, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        fillText(ctx, 'No Text? No Problem!', W/2, 90, 38, C.black, 'center', '700');
+        fillText(ctx, 'AI resizes the image optimally', W/2, 130, 20, C.gray, 'center', '400');
+        ctx.restore();
+      }
+
+      // Resize animation: image scaling down
+      const cx = W/2, cy = 285;
+      const imgA = easeOut(clamp(t/0.8, 0, 1));
+      ctx.save(); ctx.globalAlpha = imgA;
+
+      if (t < 2) {
+        // Large original
+        drawIcon_image(ctx, cx, cy, 200, 'ORIGINAL\n3200×2400');
+      } else {
+        // Animated scale
+        const sc = lerp(1, 0.5, easeOut(clamp((t-2)/1.5, 0, 1)));
+        const targetY = lerp(cy, cy-10, easeOut(clamp((t-2)/1.5, 0, 1)));
+        drawIcon_image(ctx, cx-100, targetY, 200*sc, 'ORIGINAL\n3200×2400');
+
+        if (t > 3) {
+          const aa = easeOut(clamp((t-3)/0.8, 0, 1));
+          ctx.globalAlpha = aa;
+          drawIcon_arrow(ctx, cx-100+100*sc, cy-10, cx+40, cy-10, C.blue, 3.5);
+          drawIcon_image(ctx, cx+160, cy-10, 110, 'RESIZED\n800×600');
+        }
+      }
+      ctx.restore();
+
+      // Size labels
+      if (t > 3.5) {
+        const la = easeOut(clamp((t-3.5)/0.7, 0, 1));
+        ctx.save(); ctx.globalAlpha = la;
+        ctx.fillStyle = '#e0f0ff'; rrect(ctx, cx-220, cy+80, 190, 50, 10); ctx.fill();
+        ctx.fillStyle = C.gray; ctx.font='700 13px Poppins,Arial'; ctx.textAlign='center';
+        ctx.fillText('Before: 3200 × 2400 px', cx-125, cy+106);
+        ctx.fillStyle = '#e0ffe7'; rrect(ctx, cx+40, cy+80, 190, 50, 10); ctx.fill();
+        ctx.fillStyle = C.green; ctx.font='700 13px Poppins,Arial';
+        ctx.fillText('After: 800 × 600 px', cx+135, cy+97);
+        ctx.fillStyle = C.greenMid; ctx.font='12px Poppins,Arial';
+        ctx.fillText('75% smaller · Lossless', cx+135, cy+116);
+        ctx.restore();
+      }
+
+      // Character (neutral/happy)
+      if (t > 2) {
+        const ca = easeOut(clamp((t-2)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ca;
+        drawCharacter(ctx, 120, 390, 0.85, 'neutral', 'neutral');
+        ctx.restore();
+      }
+
+      if (t > 4.5) {
+        const ta = easeOut(clamp((t-4.5)/0.6, 0, 1));
+        ctx.save(); ctx.globalAlpha = ta;
+        drawBadge(ctx, W/2-170, 440, 340, 46, '✅  Resize Complete — Quality Preserved!', C.blue, 'white', 16);
+        ctx.restore();
+      }
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SCENE 10: CONCLUSION (115-120s)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: 's10', label: 'Conclusion', start: 115, end: 120,
+    draw(ctx, t, p) {
+      drawBG(ctx, C.bg);
+
+      // Confetti-style background particles
+      ctx.save(); ctx.globalAlpha = 0.5;
+      const confColors = [C.green, C.ai, C.orange, C.red, C.gold, C.blue];
+      for (let i = 0; i < 35; i++) {
+        const x = (i*97 + t*22) % W;
+        const y = (i*73 + Math.sin(i)*40 + t*18) % H;
+        ctx.fillStyle = confColors[i % confColors.length];
+        ctx.save(); ctx.translate(x, y); ctx.rotate(i*0.7 + t);
+        ctx.fillRect(-6, -3, 12, 6);
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // Character on left (happy)
+      drawCharacter(ctx, 165, 390, 1.0, 'happy', 'happy');
+
+      // Main headline
+      const ha = easeOut(clamp(t/0.7, 0, 1));
+      ctx.save(); ctx.globalAlpha = ha;
+      strokeText2(ctx, 'SMART.', W/2+100, 145, 62, C.green, '#8fc4d5');
+      strokeText2(ctx, 'EFFICIENT.', W/2+100, 215, 62, C.ai, '#8fc4d5');
+      strokeText2(ctx, 'ACCURATE.', W/2+100, 285, 62, C.orange, '#8fc4d5');
+      ctx.restore();
+
+      // 3 feature summary badges
+      if (t > 1.2) {
+        const ba = easeOut(clamp((t-1.2)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ba;
+        const feats = [
+          {label:'🔍  Text Detection', bg: '#e0e7ff', fg: C.ai},
+          {label:'✨  AI Enhancement', bg: C.greenLt, fg: C.green},
+          {label:'↔  Smart Resize',  bg: '#fff7ed', fg: C.orange},
+        ];
+        feats.forEach((f, i) => {
+          const fy = 340 + i*0;
+          ctx.fillStyle = f.bg; rrect(ctx, W/2-130+i*0, 335+i*52, 320, 42, 10); ctx.fill();
+          ctx.fillStyle = f.fg; ctx.font = `600 16px 'Poppins', Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText(f.label, W/2+30, 356+i*52);
+        });
+        ctx.restore();
+      }
+
+      // CTA tag
+      if (t > 2.8) {
+        const ca = easeOut(clamp((t-2.8)/0.8, 0, 1));
+        ctx.save(); ctx.globalAlpha = ca;
+        drawBadge(ctx, W/2-145, 490, 350, 40, 'Try the AI Image Processing System!', C.green, 'white', 15);
+        ctx.restore();
+      }
+
+      // Checkmark bursts near character
+      if (t > 1.5) {
+        const sa = easeOut(clamp((t-1.5)/0.5, 0, 1));
+        ctx.save(); ctx.globalAlpha = sa;
+        [[270,220],[300,260],[260,300]].forEach(([cx,cy]) => {
+          drawGlowCircle(ctx, cx, cy, 18, 'rgb(34,197,94)', 0.4);
+          drawIcon_check(ctx, cx, cy, 22);
+        });
+        ctx.restore();
+      }
+    }
+  },
+];
+
+// ─── ANIMATION CONTROLLER ───────────────────────────────────────
+let globalTime = 0;
+let playing = false;
+let lastTs = null;
+let raf = null;
+
+const progressFill = document.getElementById('progress-fill');
+const timeDisplay  = document.getElementById('time-display');
+const sceneLabel   = document.getElementById('scene-label');
+const playBtn      = document.getElementById('play-btn');
+const restartBtn   = document.getElementById('restart-btn');
+const startOverlay = document.getElementById('start-overlay');
+const startBtn     = document.getElementById('start-btn');
+const timeline     = document.getElementById('timeline');
+
+function fmtTime(s) {
+  const m = Math.floor(s/60), ss = Math.floor(s%60);
+  return `${m}:${ss.toString().padStart(2,'0')}`;
+}
+
+function findScene(t) {
+  for (const sc of SCENES) if (t >= sc.start && t < sc.end) return sc;
+  return SCENES[SCENES.length-1];
+}
+
+function render(t) {
+  ctx.clearRect(0, 0, W, H);
+  const sc = findScene(t);
+  if (sc) {
+    const lt = t - sc.start;
+    const lp = lt / (sc.end - sc.start);
+    sc.draw(ctx, lt, clamp(lp, 0, 1));
+  }
+}
+
+function updateUI() {
+  const pct = (globalTime / TOTAL) * 100;
+  progressFill.style.width = pct + '%';
+  timeDisplay.textContent  = `${fmtTime(globalTime)} / ${fmtTime(TOTAL)}`;
+  const sc = findScene(globalTime);
+  if (sc) sceneLabel.textContent = `Scene ${SCENES.indexOf(sc)+1} — ${sc.label}`;
+  playBtn.textContent = playing ? '⏸' : '▶';
+}
+
+function tick(ts) {
+  if (lastTs !== null && playing) {
+    const dt = Math.min((ts - lastTs) / 1000, 0.1);
+    globalTime = Math.min(globalTime + dt, TOTAL);
+  }
+  lastTs = ts;
+  try { render(globalTime); } catch(e) { console.warn('Render error:', e); }
+  updateUI();
+  if (globalTime >= TOTAL) {
+    playing = false;
+    updateUI();
+    lastTs = null;
+    return;
+  }
+  raf = requestAnimationFrame(tick);
+}
+
+function play() {
+  if (globalTime >= TOTAL) { globalTime = 0; lastTs = null; }
+  playing = true;
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+function pause() { playing = false; lastTs = null; }
+function restart() { globalTime = 0; lastTs = null; playing = true; raf = requestAnimationFrame(tick); }
+
+playBtn.addEventListener('click', () => { playing ? pause() : play(); });
+restartBtn.addEventListener('click', restart);
+startBtn.addEventListener('click', () => {
+  startOverlay.classList.add('hidden');
+  play();
+});
+
+timeline.addEventListener('click', e => {
+  const rect = timeline.getBoundingClientRect();
+  const ratio = (e.clientX - rect.left) / rect.width;
+  globalTime = clamp(ratio * TOTAL, 0, TOTAL);
+  lastTs = null;
+  render(globalTime);
+  updateUI();
+});
+
+// Initial frame
+render(0);
+updateUI();
+</script>
+</body>
+</html>
