@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>A Tale of Two Clouds: Engineering for Accessibility</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: 'Poppins', 'Segoe UI', Arial, sans-serif; padding: 24px;
+}
+#page-title { color: #555; font-size: 12px; font-weight:400; letter-spacing:.15em; text-transform:uppercase; margin-bottom:10px; }
+#player-wrap { position:relative; width:960px; max-width:100%; filter:drop-shadow(0 30px 80px rgba(0,0,0,.7)); }
+#canvas-wrap { position:relative; width:960px; height:540px; border-radius:14px 14px 0 0; overflow:hidden; }
+canvas { display:block; width:960px; height:540px; }
+#start-overlay {
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.6); backdrop-filter:blur(4px); transition:opacity .4s ease; z-index:10;
+}
+#start-overlay.hidden { opacity:0; pointer-events:none; }
+#start-btn {
+  background:linear-gradient(135deg,#22c55e,#16a34a); border:none; color:white; font-family:inherit;
+  font-size:18px; font-weight:700; padding:16px 48px; border-radius:50px; cursor:pointer;
+  letter-spacing:.05em; box-shadow:0 8px 32px rgba(34,197,94,.4); transition:transform .2s,box-shadow .2s;
+}
+#start-btn:hover { transform:scale(1.06); }
+#start-label { color:rgba(255,255,255,.55); font-size:13px; margin-top:12px; }
+#controls {
+  background:#151525; border-radius:0 0 14px 14px; padding:12px 20px; display:flex; align-items:center;
+  gap:14px; width:960px; max-width:100%; border-top:1px solid #2a2a3e;
+}
+#play-btn { background:none; border:2px solid #22c55e; color:#22c55e; width:34px; height:34px; border-radius:50%; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .2s; }
+#play-btn:hover { background:#22c55e; color:#000; }
+#restart-btn { background:none; border:1px solid #444; color:#888; width:28px; height:28px; border-radius:50%; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .2s; }
+#restart-btn:hover { border-color:#22c55e; color:#22c55e; }
+#timeline-wrap { flex:1; display:flex; flex-direction:column; gap:4px; }
+#timeline { width:100%; height:5px; background:#2a2a3e; border-radius:3px; cursor:pointer; position:relative; overflow:hidden; }
+#progress-fill { height:100%; background:linear-gradient(90deg,#22c55e,#4ade80); border-radius:3px; width:0%; transition:width .08s linear; pointer-events:none; }
+#scene-label { font-size:10px; color:#555; letter-spacing:.05em; }
+#time-display { color:#666; font-size:12px; white-space:nowrap; flex-shrink:0; }
+</style>
+</head>
+<body>
+<p id="page-title">A Tale of Two Clouds: Engineering for Accessibility</p>
+<div id="player-wrap">
+  <div id="canvas-wrap">
+    <canvas id="canvas" width="960" height="540"></canvas>
+    <div id="start-overlay">
+      <button id="start-btn">▶ &nbsp; Play Animation</button>
+      <p id="start-label">3-minute explainer · AWS vs GCP · Healthcare Accessibility</p>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="play-btn">▶</button>
+    <div id="timeline-wrap">
+      <div id="timeline"><div id="progress-fill"></div></div>
+      <div id="scene-label">Act 1 — The Hospital's Dilemma</div>
+    </div>
+    <span id="time-display">0:00 / 3:00</span>
+    <button id="restart-btn">↺</button>
+  </div>
+</div>
+<script>
+"use strict";
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const W = 960, H = 540;
+const TOTAL  = 180;
+
+// ─── COLORS ─────────────────────────────────────────────────────
+const C = {
+  bg:       '#b8d8e8',  bgHosp: '#c8e6f0', bgDark: '#8fbfd8',
+  bgAWS:    '#fff8f0',  bgGCP:  '#f0f4ff',
+  skin:     '#f4a776',  hair:   '#3d2b1f',  hairF: '#8b5e3c',
+  shirtB:   '#2563eb',  pantsB: '#374151',  tieB: '#1e3a5f',
+  shirtP:   '#7c3aed',  pantsP: '#2c1854',
+  shirtG:   '#059669',  pantsG: '#1e3a5f',
+  shoe:     '#1a0f2e',
+  awsOrange:'#FF9900',  awsDark: '#c67000',
+  gcpBlue:  '#4285F4',  gcpRed:  '#EA4335',  gcpYellow:'#FBBC04', gcpGreen:'#34A853',
+  green:    '#16a34a',  greenLt: '#d4edda',
+  red:      '#dc2626',  redLt:   '#fee2e2',
+  blue:     '#2563eb',  blueLt:  '#dbeafe',
+  purple:   '#7c3aed',  purpleLt:'#ede9fe',
+  white:    '#ffffff',  black:   '#1a1a2e',  gray: '#6b7280',
+  gold:     '#f59e0b',  goldLt:  '#fef3c7',
+  teal:     '#0d9488',  tealLt:  '#ccfbf1',
+};
+
+// ─── MATH ────────────────────────────────────────────────────────
+const clamp  = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+const lerp   = (a,b,t)   => a+(b-a)*clamp(t,0,1);
+const easeOut = t => 1-(1-clamp(t,0,1))**2;
+const ease    = t => t<.5?2*t*t:-1+(4-2*t)*t;
+const bounce  = t => { t=clamp(t,0,1); if(t<.36) return (t/.36)**2; if(t<.73) return .75+.1875*(1-((t-.545)/.182)**2); return .9375+.0625*(1-((t-.909)/.0909)**2); };
+const floatY  = (t,a=8,f=1.5) => Math.sin(t*f*Math.PI*2)*a;
+const slide   = (t,d,from,to) => lerp(from,to,easeOut(clamp(t/d,0,1)));
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+function fillBG(color){ ctx.fillStyle=color; ctx.fillRect(0,0,W,H); }
+function txt(t,x,y,sz,color,align='center',wt='700'){
+  ctx.save(); ctx.fillStyle=color; ctx.font=`${wt} ${sz}px 'Poppins',Arial`;
+  ctx.textAlign=align; ctx.textBaseline='middle'; ctx.fillText(t,x,y); ctx.restore();
+}
+function strokeTxt(t,x,y,sz,fill,stroke,align='center'){
+  ctx.save(); ctx.font=`900 ${sz}px 'Poppins',Arial`; ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.strokeStyle=stroke; ctx.lineWidth=5; ctx.strokeText(t,x,y);
+  ctx.fillStyle=fill; ctx.fillText(t,x,y); ctx.restore();
+}
+function badge(x,y,w,h,text,bg,fg,sz=16){
+  ctx.fillStyle=bg; rrect(ctx,x,y,w,h,h/2); ctx.fill();
+  ctx.fillStyle=fg; ctx.font=`700 ${sz}px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text,x+w/2,y+h/2);
+}
+function arrow(x1,y1,x2,y2,color='#333',lw=3,hs=12){
+  ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw; ctx.lineCap='round';
+  const a=Math.atan2(y2-y1,x2-x1), len=Math.hypot(x2-x1,y2-y1);
+  ctx.translate(x1,y1); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len-hs,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(len,0); ctx.lineTo(len-hs,-hs*.6); ctx.lineTo(len-hs,hs*.6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function speechBubble(x,y,w,h,lines,tailDir='right',bg=C.white,fg=C.black,sz=16){
+  ctx.save(); ctx.fillStyle=bg; ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=1.5;
+  rrect(ctx,x,y,w,h,12); ctx.fill(); ctx.stroke();
+  const mx=x+w/2, my=y+h*.65;
+  if(tailDir==='left'){
+    ctx.beginPath(); ctx.moveTo(x+20,my); ctx.lineTo(x-16,my+14); ctx.lineTo(x+8,my+2); ctx.fillStyle=bg; ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.moveTo(x+w-20,my); ctx.lineTo(x+w+16,my+14); ctx.lineTo(x+w-8,my+2); ctx.fillStyle=bg; ctx.fill();
+  }
+  const lh=sz*1.4, sy=y+h/2-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>{ ctx.fillStyle=fg; ctx.font=`600 ${sz}px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(l,mx,sy+i*lh); });
+  ctx.restore();
+}
+function thoughtBubble(cx,cy,w,h,lines,textColor=C.black,sz=15){
+  ctx.save(); ctx.fillStyle='rgba(240,248,255,0.95)'; ctx.strokeStyle='rgba(180,210,230,0.8)'; ctx.lineWidth=2;
+  const bumps=[{ox:0,oy:-h*.1,rx:w*.42,ry:h*.38},{ox:-w*.22,oy:h*.1,rx:w*.32,ry:h*.32},{ox:w*.22,oy:h*.1,rx:w*.32,ry:h*.32},{ox:-w*.05,oy:h*.22,rx:w*.35,ry:h*.24}];
+  bumps.forEach(b=>{ ctx.beginPath(); ctx.ellipse(cx+b.ox,cy+b.oy,b.rx,b.ry,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+  [12,9,6].forEach((r,i)=>{ ctx.beginPath(); ctx.arc(cx-w*.35-i*12,cy+h*.4+i*11,r,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+  const lh=sz*1.4, sy=cy-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>{ ctx.fillStyle=textColor; ctx.font=`700 ${sz}px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(l,cx,sy+i*lh); });
+  ctx.restore();
+}
+
+// ─── CLOUD SERVICE ICONS ─────────────────────────────────────────
+function iconS3(cx,cy,size){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=C.awsOrange;
+  ctx.beginPath(); ctx.ellipse(0,s*.35,s*.62,s*.18,0,0,Math.PI*2); ctx.fill();
+  ctx.fillRect(-s*.62,-s*.35,s*1.24,s*.7);
+  ctx.beginPath(); ctx.ellipse(0,-s*.35,s*.62,s*.18,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#FFD08A'; ctx.beginPath(); ctx.ellipse(0,-s*.35,s*.62,s*.18,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.font=`900 ${s*.52}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('S3',0,0);
+  ctx.restore();
+}
+function iconRekognition(cx,cy,size,scanT=0){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=C.awsOrange; ctx.beginPath(); ctx.arc(0,0,s,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white';
+  ctx.beginPath(); ctx.moveTo(-s*.58,0); ctx.quadraticCurveTo(0,-s*.45,s*.58,0); ctx.quadraticCurveTo(0,s*.45,-s*.58,0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=C.awsDark; ctx.beginPath(); ctx.arc(0,0,s*.24,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=C.black; ctx.beginPath(); ctx.arc(0,0,s*.14,0,Math.PI*2); ctx.fill();
+  if(scanT>0){ ctx.strokeStyle='rgba(255,153,0,0.85)'; ctx.lineWidth=2.5; const sy=-s*.42+scanT*s*.84; ctx.beginPath(); ctx.moveTo(-s*.5,sy); ctx.lineTo(s*.5,sy); ctx.stroke(); }
+  ctx.restore();
+}
+function iconLambda(cx,cy,size){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=C.awsOrange; rrect(ctx,-s,-s,s*2,s*2,s*.18); ctx.fill();
+  ctx.fillStyle='white'; ctx.font=`900 ${s*1.1}px 'Georgia',serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('λ',0,s*.05);
+  ctx.restore();
+}
+function iconPillow(cx,cy,size){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle='#3b82f6'; rrect(ctx,-s,-s,s*2,s*2,s*.15); ctx.fill();
+  ctx.strokeStyle='white'; ctx.lineWidth=s*.14; ctx.lineCap='round';
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([dx,dy])=>{
+    const fx=dx*s*.55, fy=dy*s*.55, a=Math.atan2(dy,dx)+Math.PI;
+    ctx.save(); ctx.translate(fx,fy); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(s*.32,0); ctx.stroke(); ctx.restore();
+  });
+  ctx.fillStyle='white'; ctx.font=`bold ${s*.28}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('COMPRESS',0,s*.62);
+  ctx.restore();
+}
+function iconGenAI(cx,cy,size){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=C.purple; rrect(ctx,-s,-s,s*2,s*2,s*.15); ctx.fill();
+  ctx.fillStyle='white';
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2, r=i%2===0?s*.52:s*.28;
+    ctx.beginPath(); ctx.arc(Math.cos(a)*r,Math.sin(a)*r,s*.1,0,Math.PI*2); ctx.fill();
+  }
+  ctx.font=`bold ${s*.3}px Arial`; ctx.fillStyle='white'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('GenAI',0,0);
+  ctx.restore();
+}
+function iconGCS(cx,cy,size){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=C.gcpBlue;
+  ctx.beginPath(); ctx.arc(-s*.22,s*.05,s*.36,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.2,-s*.05,s*.46,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*.52,s*.15,s*.28,0,Math.PI*2); ctx.fill();
+  ctx.fillRect(-s*.52,s*.1,s*1.08,s*.48);
+  ctx.fillStyle='white'; ctx.font=`bold ${s*.32}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('GCS',s*.1,s*.32);
+  ctx.restore();
+}
+function iconGemini(cx,cy,size,t=0){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  const cols=[C.gcpBlue,C.gcpGreen,C.gcpYellow,C.gcpRed];
+  for(let i=0;i<4;i++){
+    const a=(i/4)*Math.PI*2+t*.4;
+    ctx.fillStyle=cols[i]; ctx.globalAlpha=0.9;
+    ctx.beginPath(); ctx.arc(Math.cos(a)*s*.42,Math.sin(a)*s*.42,s*.36,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1; ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(0,0,s*.28,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=C.black; ctx.font=`bold ${s*.26}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Gemini',0,0);
+  ctx.restore();
+}
+function iconDB(cx,cy,size,color=C.awsOrange,label='DB'){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle=color;
+  for(let i=0;i<3;i++){
+    const y=-s*.38+i*s*.38;
+    ctx.beginPath(); ctx.ellipse(0,y-s*.12,s*.62,s*.14,0,0,Math.PI*2); ctx.fill();
+    ctx.fillRect(-s*.62,y-s*.12,s*1.24,s*.25);
+  }
+  ctx.beginPath(); ctx.ellipse(0,s*.38,s*.62,s*.14,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.font=`bold ${s*.35}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,0,s*.05);
+  ctx.restore();
+}
+function iconMonitor(cx,cy,w,h,contentFn){
+  ctx.save(); ctx.translate(cx,cy);
+  ctx.fillStyle='#2d3748'; rrect(ctx,-w/2,-h/2,w,h,10); ctx.fill();
+  ctx.fillStyle='#1a1a2e'; rrect(ctx,-w/2+8,-h/2+8,w-16,h-32,6); ctx.fill();
+  if(contentFn) contentFn(ctx,-w/2+8,-h/2+8,w-16,h-32);
+  ctx.fillStyle='#374151'; ctx.fillRect(-8,h/2-8,16,18); rrect(ctx,-22,h/2+10,44,6,3); ctx.fill();
+  ctx.restore();
+}
+function iconTablet(cx,cy,size,contentFn){
+  ctx.save(); ctx.translate(cx,cy); const s=size/2;
+  ctx.fillStyle='#2d3748'; rrect(ctx,-s*.55,-s,s*1.1,s*2,12); ctx.fill();
+  ctx.fillStyle='#1a202c'; rrect(ctx,-s*.44,-s*.88,s*.88,s*1.6,6); ctx.fill();
+  if(contentFn) contentFn(ctx,-s*.44,-s*.88,s*.88,s*1.6);
+  ctx.fillStyle='#4a5568'; ctx.beginPath(); ctx.arc(0,s*.88,6,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ─── MALE CHARACTER (BOB) ────────────────────────────────────────
+function drawBob(cx,cy,scale,pose,expr,flipH=false){
+  ctx.save(); ctx.translate(cx,cy); if(flipH) ctx.scale(-1,1); ctx.scale(scale,scale);
+  const sk=C.skin, hr=C.hair, sh=C.shirtB, pt=C.pantsB, shoe=C.shoe;
+  ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.ellipse(0,148,44,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=shoe; ctx.beginPath(); ctx.ellipse(-20,147,18,8,.1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(20,147,18,8,-.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=pt; rrect(ctx,-33,80,28,72,12); ctx.fill(); rrect(ctx,5,80,28,72,12); ctx.fill();
+  ctx.fillStyle=sh; rrect(ctx,-46,15,92,72,18); ctx.fill();
+  // Tie
+  ctx.fillStyle=C.tieB; ctx.beginPath(); ctx.moveTo(-6,18); ctx.lineTo(6,18); ctx.lineTo(4,80); ctx.lineTo(0,88); ctx.lineTo(-4,80); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#2d5da8'; ctx.beginPath(); ctx.moveTo(-6,18); ctx.lineTo(6,18); ctx.lineTo(4,30); ctx.lineTo(-4,30); ctx.closePath(); ctx.fill();
+  // Arms
+  if(pose==='neutral'||pose==='explaining'||pose==='happy'){
+    ctx.fillStyle=sh;
+    ctx.save(); ctx.translate(-46,28); ctx.rotate(pose==='happy'?.45:.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-50,pose==='happy'?60:88,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh;
+    ctx.save(); ctx.translate(46,28); ctx.rotate(pose==='happy'?-.45:(pose==='explaining'?-.5:-.08)); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk;
+    if(pose==='explaining'){ ctx.beginPath(); ctx.ellipse(70,10,12,12,0,0,Math.PI*2); ctx.fill(); }
+    else { ctx.beginPath(); ctx.ellipse(50,pose==='happy'?60:88,12,12,0,0,Math.PI*2); ctx.fill(); }
+  } else if(pose==='thinking'){
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(-46,28); ctx.rotate(.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-50,88,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(46,28); ctx.rotate(-.7); rrect(ctx,-11,0,22,42,11); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(28,10); ctx.rotate(.35); ctx.fillStyle=sh; rrect(ctx,-10,0,20,38,10); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(24,-8,12,12,0,0,Math.PI*2); ctx.fill();
+  } else if(pose==='pointing_right'){
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(-46,28); ctx.rotate(.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-50,88,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(46,35); ctx.rotate(-.28); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(94,30,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=sk; ctx.lineWidth=5; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(94,30); ctx.lineTo(110,22); ctx.stroke();
+  } else if(pose==='sitting'){
+    // Legs forward for sitting
+    ctx.fillStyle=pt; rrect(ctx,-33,80,28,50,12); ctx.fill(); rrect(ctx,5,80,28,50,12); ctx.fill();
+    ctx.fillStyle=pt; rrect(ctx,-45,120,40,18,8); ctx.fill(); rrect(ctx,5,120,40,18,8); ctx.fill();
+    ctx.fillStyle=shoe; ctx.beginPath(); ctx.ellipse(-25,132,17,8,-.3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(25,132,17,8,.3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(-46,28); ctx.rotate(.15); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-55,85,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(46,28); ctx.rotate(-.15); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(55,85,12,12,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle=sk; rrect(ctx,-15,5,30,18,8); ctx.fill();
+  ctx.fillStyle=sk; ctx.beginPath(); ctx.arc(0,-22,38,0,Math.PI*2); ctx.fill();
+  // Short professional hair
+  ctx.fillStyle=hr;
+  ctx.beginPath(); ctx.arc(0,-30,38,Math.PI,Math.PI*2); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0,-30,38,24,0,Math.PI,Math.PI*2); ctx.fill();
+  ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-38,-18,7,9,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(38,-18,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.beginPath(); ctx.ellipse(-13,-22,9,8,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(13,-22,9,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3b5a8a'; ctx.beginPath(); ctx.arc(-13,-21,5.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(13,-21,5.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(-12,-20,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(14,-20,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(-11,-22,1.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(15,-22,1.8,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=hr; ctx.lineWidth=3; ctx.lineCap='round';
+  if(expr==='worried'){ ctx.beginPath(); ctx.moveTo(-22,-35); ctx.lineTo(-5,-32); ctx.stroke(); ctx.beginPath(); ctx.moveTo(5,-32); ctx.lineTo(22,-35); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.moveTo(-22,-33); ctx.lineTo(-5,-31); ctx.stroke(); ctx.beginPath(); ctx.moveTo(5,-31); ctx.lineTo(22,-33); ctx.stroke(); }
+  ctx.strokeStyle='#d4885f'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-4,-13); ctx.quadraticCurveTo(5,-9,3,-13); ctx.stroke();
+  // Subtle stubble
+  ctx.fillStyle='rgba(61,43,31,0.14)'; ctx.beginPath(); ctx.ellipse(0,-4,19,12,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#c96650'; ctx.lineWidth=2.5; ctx.lineCap='round';
+  if(expr==='happy'){ ctx.beginPath(); ctx.arc(0,-6,12,.15,Math.PI-.15); ctx.stroke(); }
+  else if(expr==='worried'){ ctx.beginPath(); ctx.arc(0,-2,10,Math.PI+.25,-.25); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(0,-5,11,.2,Math.PI-.2); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ─── FEMALE CHARACTER (PATIENT with glasses) ─────────────────────
+function drawPatient(cx,cy,scale,pose,expr){
+  ctx.save(); ctx.translate(cx,cy); ctx.scale(scale,scale);
+  const sk=C.skin, hr=C.hairF, sh=C.shirtP, pt=C.pantsP, shoe=C.shoe;
+  ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.ellipse(0,148,42,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=shoe; ctx.beginPath(); ctx.ellipse(-19,147,17,8,.1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(19,147,17,8,-.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=pt; rrect(ctx,-32,80,26,72,12); ctx.fill(); rrect(ctx,6,80,26,72,12); ctx.fill();
+  ctx.fillStyle=sh; rrect(ctx,-42,18,84,72,20); ctx.fill();
+  if(pose==='holding_tablet'){
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(-42,28); ctx.rotate(.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-45,88,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(42,28); ctx.rotate(-.35); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(62,50,12,12,0,0,Math.PI*2); ctx.fill();
+  } else {
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(-42,28); ctx.rotate(.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-45,88,12,12,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=sh; ctx.save(); ctx.translate(42,28); ctx.rotate(-.08); rrect(ctx,-11,0,22,56,11); ctx.fill(); ctx.restore();
+    ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(45,88,12,12,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle=sk; rrect(ctx,-14,5,28,20,8); ctx.fill();
+  ctx.fillStyle=sk; ctx.beginPath(); ctx.arc(0,-20,36,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=hr;
+  ctx.beginPath(); ctx.arc(0,-27,37,Math.PI,Math.PI*2); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0,-27,37,25,0,Math.PI,Math.PI*2); ctx.fill();
+  ctx.save(); ctx.translate(-33,-27); ctx.rotate(.12); rrect(ctx,-7,0,14,64,7); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(33,-27); ctx.rotate(-.12); rrect(ctx,-6,0,14,64,7); ctx.fill(); ctx.restore();
+  ctx.fillStyle=sk; ctx.beginPath(); ctx.ellipse(-37,-18,7,9,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(37,-18,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='white'; ctx.beginPath(); ctx.ellipse(-13,-22,9,8,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(13,-22,9,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4a3520'; ctx.beginPath(); ctx.arc(-13,-21,5.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(13,-21,5.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(-12,-20,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(14,-20,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(-11,-22,1.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(15,-22,1.8,0,Math.PI*2); ctx.fill();
+  // Glasses
+  ctx.strokeStyle='#1a1a2e'; ctx.lineWidth=2.8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(-13,-21,11,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(13,-21,11,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-2,-21); ctx.lineTo(2,-21); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-24,-21); ctx.lineTo(-28,-19); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(24,-21); ctx.lineTo(28,-19); ctx.stroke();
+  ctx.strokeStyle=hr; ctx.lineWidth=2.8;
+  ctx.beginPath(); ctx.moveTo(-22,-33); ctx.lineTo(-5,-31); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(5,-31); ctx.lineTo(22,-33); ctx.stroke();
+  ctx.strokeStyle='#d4885f'; ctx.lineWidth=1.8; ctx.beginPath(); ctx.moveTo(-3,-13); ctx.quadraticCurveTo(5,-9,3,-13); ctx.stroke();
+  ctx.fillStyle='rgba(255,145,120,0.28)'; ctx.beginPath(); ctx.ellipse(-25,-10,9,5,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(25,-10,9,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#c96650'; ctx.lineWidth=2.5; ctx.lineCap='round';
+  if(expr==='happy'){ ctx.beginPath(); ctx.arc(0,-6,12,.15,Math.PI-.15); ctx.stroke(); }
+  else { ctx.beginPath(); ctx.arc(0,-5,11,.2,Math.PI-.2); ctx.stroke(); }
+  ctx.restore();
+}
+
+// ─── DATA PACKET ANIMATION ────────────────────────────────────────
+function dataPacket(x,y,color,size=10){
+  ctx.save();
+  ctx.fillStyle=color; ctx.strokeStyle='white'; ctx.lineWidth=1.5;
+  rrect(ctx,x-size/2,y-size/2,size,size,3); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// Animate a packet along path defined by waypoints
+function packetAlongPath(waypoints, progress, color, size=10){
+  if(!waypoints||waypoints.length<2) return;
+  const totalSegments = waypoints.length-1;
+  const segProgress = progress * totalSegments;
+  const segIdx = Math.min(Math.floor(segProgress), totalSegments-1);
+  const segT = segProgress - segIdx;
+  const p0 = waypoints[segIdx], p1 = waypoints[segIdx+1];
+  const x = lerp(p0[0],p1[0],segT), y = lerp(p0[1],p1[1],segT);
+  dataPacket(x,y,color,size);
+}
+
+// ─── SERVER/STORAGE BAR CHART ────────────────────────────────────
+function drawCapacityChart(x,y,w,h,fillPct,title,t){
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.7)'; rrect(ctx,x,y,w,h,8); ctx.fill();
+  ctx.fillStyle='#22d3ee'; ctx.font=`bold 11px Arial`; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText(title,x+10,y+14);
+  const barsData=[{label:'Patients',pct:.92},{label:'Imaging',pct:.88},{label:'Forms',pct:.96},{label:'Reports',pct:.84}];
+  const bw=(w-20)/barsData.length-6, bh2=h-45;
+  barsData.forEach((b,i)=>{
+    const bx=x+10+i*(bw+6), by=y+26, filledH=bh2*b.pct;
+    const p=clamp(fillPct,0,1)*b.pct;
+    ctx.fillStyle='#1e3a5f'; ctx.fillRect(bx,by,bw,bh2);
+    const flashAlt=p>.85&&Math.floor(t*3)%2===0;
+    ctx.fillStyle=flashAlt?'#ff0000':(p>.85?'#ef4444':'#22c55e');
+    ctx.fillRect(bx,by+bh2-bh2*p,bw,bh2*p);
+    ctx.fillStyle='#aaa'; ctx.font=`9px Arial`; ctx.textAlign='center';
+    ctx.fillText(b.label,bx+bw/2,by+bh2+10);
+  });
+  // RED WARNING
+  if(fillPct>.8){
+    ctx.fillStyle=`rgba(220,38,38,${.4+.3*Math.sin(t*5)})`;
+    rrect(ctx,x,y,w,h,8); ctx.fill();
+    ctx.fillStyle='#ef4444'; ctx.font=`bold 12px Arial`; ctx.textAlign='center';
+    ctx.fillText('⚠ CRITICAL CAPACITY',x+w/2,y+h-12);
+  }
+  ctx.restore();
+}
+
+// ─── FLOW DIAGRAM HELPERS ─────────────────────────────────────────
+function flowBox(cx,cy,w,h,label,sublabel,bg,fg,borderColor){
+  ctx.save();
+  ctx.fillStyle=bg; ctx.strokeStyle=borderColor||'rgba(0,0,0,0.2)'; ctx.lineWidth=2.5;
+  rrect(ctx,cx-w/2,cy-h/2,w,h,10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=fg; ctx.font=`bold 13px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label,cx,sublabel?cy-7:cy);
+  if(sublabel){ ctx.fillStyle=fg+'aa'; ctx.font=`11px Arial`; ctx.fillText(sublabel,cx,cy+10); }
+  ctx.restore();
+}
+
+function diamond(cx,cy,w,h,label,bg='#fef3c7',fg='#92400e',border='#f59e0b'){
+  ctx.save(); ctx.fillStyle=bg; ctx.strokeStyle=border; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(cx,cy-h/2); ctx.lineTo(cx+w/2,cy); ctx.lineTo(cx,cy+h/2); ctx.lineTo(cx-w/2,cy); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle=fg; ctx.font=`bold 12px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label,cx,cy);
+  ctx.restore();
+}
+
+// ─── SCENES ──────────────────────────────────────────────────────
+const SCENES=[
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 1: TITLE CARD (0–8s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s1', label:'Title', start:0, end:8,
+  draw(ctx,t,p){
+    // Deep blue gradient bg
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#0f172a'); g.addColorStop(1,'#1e1b4b');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // Stars
+    ctx.save(); ctx.globalAlpha=0.4;
+    for(let i=0;i<60;i++){
+      const sx=(i*173)%W, sy=(i*97)%H, sr=0.8+Math.sin(t*2+i)*.5;
+      ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    // Hospital cross
+    const ca=easeOut(clamp(t/1.5,0,1));
+    ctx.save(); ctx.globalAlpha=ca*.15;
+    ctx.fillStyle='white'; ctx.fillRect(W/2-12,H/2-50,24,100); ctx.fillRect(W/2-50,H/2-12,100,24);
+    ctx.restore();
+    // AWS logo area (left)
+    const loa=easeOut(clamp((t-1)/1.5,0,1));
+    ctx.save(); ctx.globalAlpha=loa;
+    ctx.fillStyle='rgba(255,153,0,0.12)'; ctx.fillRect(0,0,W/2,H);
+    ctx.fillStyle=C.awsOrange; ctx.font=`900 32px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('AWS',210,H/2+50+floatY(t,6));
+    iconS3(140,H/2+50+floatY(t,5)*.7,50);
+    iconRekognition(280,H/2+50+floatY(t,7,1.2),50);
+    ctx.restore();
+    // GCP logo area (right)
+    ctx.save(); ctx.globalAlpha=loa;
+    ctx.fillStyle='rgba(66,133,244,0.12)'; ctx.fillRect(W/2,0,W/2,H);
+    iconGemini(750,H/2+50+floatY(t,6),60,t);
+    ctx.fillStyle=C.gcpBlue; ctx.font=`900 32px 'Poppins',Arial`; ctx.textAlign='center';
+    ctx.fillText('GCP',720,H/2+50+floatY(t,5));
+    ctx.restore();
+    // Divider line
+    ctx.save(); ctx.globalAlpha=loa*.5; ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=2; ctx.setLineDash([8,6]);
+    ctx.beginPath(); ctx.moveTo(W/2,80); ctx.lineTo(W/2,H-60); ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+    // Main title
+    const ta=easeOut(clamp((t-.5)/1.5,0,1));
+    ctx.save(); ctx.globalAlpha=ta;
+    strokeTxt('A Tale of Two Clouds',W/2,H/2-55,44,'white','rgba(30,30,80,0.6)');
+    strokeTxt('Engineering for Accessibility',W/2,H/2+5,28,'#a5f3fc','rgba(30,30,80,0.6)');
+    ctx.restore();
+    // Act labels
+    if(t>3){
+      const aa=easeOut(clamp((t-3)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=aa;
+      badge(60,H-75,220,36,'Act 1: The Dilemma','rgba(255,153,0,0.25)',C.awsOrange,13);
+      badge(370,H-75,240,36,'Act 2: The Duel','rgba(66,133,244,0.25)',C.gcpBlue,13);
+      badge(680,H-75,220,36,'Act 3: The Verdict','rgba(22,163,74,0.25)',C.green,13);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 2: MEET BOB (8–22s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s2', label:'Act 1 — Meet Bob', start:8, end:22,
+  draw(ctx,t,p){
+    fillBG(C.bgHosp);
+    // Hospital wall details
+    ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.fillRect(0,0,W,18); ctx.fillRect(0,H-18,W,18);
+    ctx.fillStyle='rgba(0,80,160,0.06)'; ctx.fillRect(W-160,0,160,H);
+    // Medical cross in corner
+    ctx.save(); ctx.globalAlpha=0.08; ctx.fillStyle=C.blue;
+    ctx.fillRect(W-100,20,22,60); ctx.fillRect(W-120,40,62,22);
+    ctx.restore();
+    // Desk
+    const deskY=380;
+    ctx.fillStyle='#a16207'; rrect(ctx,200,deskY,500,30,6); ctx.fill();
+    ctx.fillStyle='#92400e'; rrect(ctx,200,deskY,500,8,6); ctx.fill();
+    ctx.fillStyle='#78350f'; ctx.fillRect(220,deskY+30,20,100); ctx.fillRect(660,deskY+30,20,100);
+    // Bob slides in from left
+    const bx=slide(t,1.5,-80,245);
+    const ba=easeOut(clamp(t/1.5,0,1));
+    ctx.save(); ctx.globalAlpha=ba; drawBob(bx,deskY+15,0.92,'sitting',t<4?'neutral':'worried'); ctx.restore();
+    // Monitor on desk
+    const mx=520, my=deskY-80;
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/1.2,0,1));
+    iconMonitor(mx,my,260,170,(c,ox,oy,ow,oh)=>{
+      drawCapacityChart(mx+ox,my+oy,ow,oh,clamp(t/6,0,1),'STORAGE CAPACITY',t);
+    });
+    ctx.restore();
+    // "MEET BOB" text
+    const textX=slide(t,1.8,W+200,630);
+    const ta=easeOut(clamp(t/1.8,0,1));
+    ctx.save(); ctx.globalAlpha=ta;
+    txt('MEET',textX,140,28,C.black,'center','700');
+    strokeTxt('BOB',textX,195,72,C.blue,'rgba(200,230,240,0.7)');
+    ctx.restore();
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1.2,0,1));
+      ctx.save(); ctx.globalAlpha=sa;
+      txt('Cybersecurity & Systems Architect',630,255,16,C.gray,'center','400');
+      badge(490,268,280,36,'@ Metro General Hospital',C.blue,'white',14);
+      ctx.restore();
+    }
+    // Warning alert from monitor
+    if(t>5){
+      const wa=easeOut(clamp((t-5)/1,0,1));
+      ctx.save(); ctx.globalAlpha=wa;
+      speechBubble(300,150,310,85,['Storage at 94% capacity!','Database choking! 🔴'],'right',C.redLt,C.red,16);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 3: THE TWO PROBLEMS (22–37s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s3', label:'Act 1 — The Two Problems', start:22, end:37,
+  draw(ctx,t,p){
+    fillBG(C.bgHosp);
+    drawBob(230,380,1.0,'thinking','worried');
+    // Title
+    const ta=easeOut(clamp(t/0.8,0,1));
+    ctx.save(); ctx.globalAlpha=ta;
+    strokeTxt('Two Massive Headaches',W/2,42,30,C.black,'rgba(200,230,240,0.8)');
+    ctx.restore();
+    // Problem 1 bubble
+    if(t>0.8){
+      const p1a=easeOut(clamp((t-0.8)/1,0,1));
+      const ox=480, oy=105;
+      ctx.save();
+      ctx.globalAlpha=p1a;
+      ctx.translate(ox,oy); ctx.scale(p1a,p1a); ctx.translate(-ox,-oy);
+      thoughtBubble(580,115,310,140,['Problem 1: Servers','choking on massive','uncompressed uploads!'],C.red,15);
+      ctx.restore();
+      // Server overload icon
+      if(t>1.5){
+        const sia=easeOut(clamp((t-1.5)/0.8,0,1));
+        ctx.save(); ctx.globalAlpha=sia;
+        iconDB(810,70,55,C.red,'92%!');
+        ctx.strokeStyle=C.red; ctx.lineWidth=3; ctx.setLineDash([5,4]);
+        ctx.beginPath(); ctx.arc(810,70,32,0,Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle=C.red; ctx.font=`bold 22px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('⚠',810,105);
+        ctx.restore();
+      }
+    }
+    // Problem 2 bubble
+    if(t>3){
+      const p2a=easeOut(clamp((t-3)/1,0,1));
+      const ox2=480, oy2=290;
+      ctx.save();
+      ctx.globalAlpha=p2a;
+      ctx.translate(ox2,oy2); ctx.scale(p2a,p2a); ctx.translate(-ox2,-oy2);
+      thoughtBubble(580,295,320,140,['Problem 2: Patients with','visual impairments get','blurry, illegible forms!'],C.purple,15);
+      ctx.restore();
+      // Blurry doc icon
+      if(t>4){
+        const da=easeOut(clamp((t-4)/0.8,0,1));
+        ctx.save(); ctx.globalAlpha=da;
+        ctx.fillStyle='white'; ctx.strokeStyle='#ccc'; ctx.lineWidth=1.5;
+        rrect(ctx,770,245,80,100,6); ctx.fill(); ctx.stroke();
+        // Blurry lines effect
+        ctx.fillStyle='rgba(150,150,150,0.6)'; ctx.filter='blur(2.5px)';
+        [[780,262,60,10],[780,280,50,8],[780,296,58,8],[780,312,45,8],[780,328,55,8]].forEach(([lx,ly,lw,lh])=>{
+          rrect(ctx,lx,ly,lw,lh,3); ctx.fill();
+        });
+        ctx.filter='none';
+        // Person icon struggling to read
+        ctx.fillStyle=C.purple; ctx.font=`22px Arial`; ctx.textAlign='center';
+        ctx.fillText('😟',810,358);
+        ctx.restore();
+      }
+    }
+    // Goal statement
+    if(t>7.5){
+      const ga=easeOut(clamp((t-7.5)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ga;
+      ctx.fillStyle='rgba(22,163,74,0.12)'; rrect(ctx,280,430,640,80,12); ctx.fill();
+      ctx.strokeStyle=C.green; ctx.lineWidth=2; ctx.setLineDash([5,4]); rrect(ctx,280,430,640,80,12); ctx.stroke(); ctx.setLineDash([]);
+      txt('The Goal: A smart filter — compress junk to save space,',W/2,456,15,C.black,'center','600');
+      txt('strictly enhance text to restore accessibility.',W/2,478,15,C.green,'center','700');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 4: THE DECISION (37–45s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s4', label:'Act 1 — Which Cloud?', start:37, end:45,
+  draw(ctx,t,p){
+    fillBG(C.bgHosp);
+    drawBob(W/2,390,1.0,'pointing_right',t>4?'neutral':'thinking');
+    const ta=easeOut(clamp(t/0.8,0,1));
+    ctx.save(); ctx.globalAlpha=ta;
+    strokeTxt('But Which Cloud?',W/2,55,36,C.black,'rgba(200,230,240,0.8)');
+    txt('"I need a smart filter system."',W/2,100,18,C.gray,'center','400');
+    ctx.restore();
+    // AWS option
+    if(t>1){
+      const aa=easeOut(clamp((t-1)/1.2,0,1));
+      ctx.save(); ctx.globalAlpha=aa;
+      ctx.translate(lerp(-180,170,easeOut(clamp((t-1)/1.2,0,1))),H/2-10);
+      ctx.scale(aa,aa); ctx.translate(-170,-(H/2-10));
+      ctx.fillStyle='rgba(255,153,0,0.18)'; rrect(ctx,30,H/2-80,280,160,16); ctx.fill();
+      ctx.strokeStyle=C.awsOrange; ctx.lineWidth=3; rrect(ctx,30,H/2-80,280,160,16); ctx.stroke();
+      ctx.fillStyle=C.awsOrange; ctx.font=`900 28px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('AWS',170,H/2-28);
+      ctx.fillStyle=C.black; ctx.font=`13px 'Poppins',Arial`; ctx.fillText('Modular • Serverless',170,H/2+2);
+      ctx.fillText('Traffic Cop Approach',170,H/2+22);
+      iconS3(120,H/2+62,46); iconRekognition(170,H/2+62,46); iconLambda(220,H/2+62,46);
+      ctx.restore();
+    }
+    // VS
+    if(t>2){
+      const va=easeOut(clamp((t-2)/0.8,0,1));
+      ctx.save(); ctx.globalAlpha=va;
+      ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.arc(W/2,H/2-20,32,0,Math.PI*2); ctx.fill();
+      strokeTxt('VS',W/2,H/2-20,26,'white','rgba(0,0,0,0.5)');
+      ctx.restore();
+    }
+    // GCP option
+    if(t>1.5){
+      const ga=easeOut(clamp((t-1.5)/1.2,0,1));
+      ctx.save(); ctx.globalAlpha=ga;
+      ctx.translate(lerp(W+180,790,easeOut(clamp((t-1.5)/1.2,0,1))),H/2-10);
+      ctx.scale(ga,ga); ctx.translate(-790,-(H/2-10));
+      ctx.fillStyle='rgba(66,133,244,0.18)'; rrect(ctx,650,H/2-80,280,160,16); ctx.fill();
+      ctx.strokeStyle=C.gcpBlue; ctx.lineWidth=3; rrect(ctx,650,H/2-80,280,160,16); ctx.stroke();
+      ctx.fillStyle=C.gcpBlue; ctx.font=`900 28px 'Poppins',Arial`; ctx.textAlign='center';
+      ctx.fillText('GCP',790,H/2-28);
+      ctx.fillStyle=C.black; ctx.font=`13px 'Poppins',Arial`; ctx.fillText('Unified • Multimodal',790,H/2+2);
+      ctx.fillText('Heavyweight AI Approach',790,H/2+22);
+      iconGemini(790,H/2+62,52,t);
+      ctx.restore();
+    }
+    if(t>5){
+      const ba=easeOut(clamp((t-5)/1,0,1));
+      ctx.save(); ctx.globalAlpha=ba;
+      badge(W/2-170,H-75,340,40,'Let the Architectural Duel Begin!',C.black,'white',16);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 5: AWS ARCHITECTURE (45–80s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s5', label:'Act 2 — AWS Route', start:45, end:80,
+  draw(ctx,t,p){
+    // AWS-themed bg
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#fff8f0'); g.addColorStop(1,'#fff3e0');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // Orange top strip
+    ctx.fillStyle=C.awsOrange; ctx.fillRect(0,0,W,52);
+    ctx.fillStyle='white';
+    ctx.font=`900 22px 'Poppins',Arial`; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText('THE AWS ROUTE',22,26);
+    ctx.font=`400 14px 'Poppins',Arial`;
+    ctx.fillText('"The Modular Traffic Cop"',260,26);
+    // AWS logo right
+    ctx.font=`900 20px Arial`; ctx.textAlign='right';
+    ctx.fillText('amazon web services',W-20,26);
+    // Bob on left
+    const ba=easeOut(clamp(t/1.2,0,1));
+    ctx.save(); ctx.globalAlpha=ba;
+    drawBob(115,380,0.82,'explaining','neutral');
+    ctx.restore();
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1,0,1));
+      ctx.save(); ctx.globalAlpha=sa;
+      speechBubble(145,185,240,70,['AWS is highly','modular!'],'right','rgba(255,153,0,0.15)',C.awsDark,15);
+      ctx.restore();
+    }
+
+    // ── ARCHITECTURE FLOW DIAGRAM ──
+    // Positions (flow left → right with fork)
+    const boxY=160, forkY=280, outY=400;
+    const imgX=250, s3X=370, rekX=500, forkX=620, yesX=740, noX=740;
+    const yesOutX=860, noOutX=860;
+    const yesBoxY=220, noBoxY=340;
+
+    // Node appearance delays
+    const nodes=[
+      {delay:0.5,   fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-.5)/.8,0,1)); ctx.translate(lerp(-60,imgX,easeOut(clamp((t-.5)/.8,0,1))),boxY); ctx.scale(easeOut(clamp((t-.5)/.8,0,1)),easeOut(clamp((t-.5)/.8,0,1))); ctx.translate(-imgX,-boxY); flowBox(imgX,boxY,90,56,'📷 Image','Input','#fff8e7',C.black,C.awsOrange); ctx.restore(); }},
+      {delay:1.5,   fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-1.5)/.8,0,1)); ctx.translate(lerp(imgX+200,s3X,easeOut(clamp((t-1.5)/.8,0,1))),boxY); ctx.scale(easeOut(clamp((t-1.5)/.8,0,1)),easeOut(clamp((t-1.5)/.8,0,1))); ctx.translate(-s3X,-boxY); iconS3(s3X,boxY,64); flowBox(s3X,boxY+50,90,28,'S3 Bucket','Trigger','rgba(255,153,0,0.2)',C.awsDark,'transparent'); ctx.restore(); }},
+      {delay:3,     fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-3)/.8,0,1)); iconRekognition(rekX,boxY,64,((t-3)*0.5)%1); flowBox(rekX,boxY+50,110,28,'Rekognition','Text Detection','rgba(255,153,0,0.2)',C.awsDark,'transparent'); ctx.restore(); }},
+      {delay:5,     fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-5)/.8,0,1)); diamond(forkX,boxY,110,70,'Text\nFound?'); ctx.restore(); }},
+      {delay:7,     fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-7)/1,0,1)); // YES branch
+        ctx.fillStyle=C.greenLt; ctx.strokeStyle=C.green; ctx.lineWidth=2; rrect(ctx,700,yesBoxY-30,130,60,10); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=C.green; ctx.font=`bold 12px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('✅ YES — Text',765,yesBoxY-10); ctx.fillText('Generative AI',765,yesBoxY+10);
+        iconGenAI(870,yesBoxY,54);
+        ctx.fillStyle=C.purple; ctx.font=`11px Arial`; ctx.textAlign='center'; ctx.fillText('High-Contrast Doc',870,yesBoxY+40);
+        // NO branch
+        ctx.fillStyle=C.redLt; ctx.strokeStyle=C.red; ctx.lineWidth=2; rrect(ctx,700,noBoxY-30,130,60,10); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=C.red; ctx.font=`bold 12px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('❌ NO — Generic',765,noBoxY-10); ctx.fillText('Pillow Compress',765,noBoxY+10);
+        iconPillow(870,noBoxY,54);
+        ctx.fillStyle=C.blue; ctx.font=`11px Arial`; ctx.textAlign='center'; ctx.fillText('68% Smaller File',870,noBoxY+40);
+        ctx.restore();
+      }},
+    ];
+    nodes.forEach(n=>n.fn());
+
+    // Arrows between nodes
+    if(t>2){ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-2)/.8,0,1)); arrow(imgX+45,boxY,s3X-32,boxY,C.awsOrange,2.5); ctx.restore(); }
+    if(t>3.5){ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-3.5)/.8,0,1)); arrow(s3X+32,boxY,rekX-32,boxY,C.awsOrange,2.5); ctx.restore(); }
+    if(t>5.5){ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-5.5)/.8,0,1)); arrow(rekX+55,boxY,forkX-55,boxY,C.awsOrange,2.5); ctx.restore(); }
+    if(t>8){
+      const aa=easeOut(clamp((t-8)/.8,0,1));
+      ctx.save(); ctx.globalAlpha=aa;
+      arrow(forkX+55,boxY-8,700,yesBoxY,C.green,2.5); ctx.fillStyle=C.green; ctx.font=`bold 11px Arial`; ctx.textAlign='left'; ctx.fillText('YES',648,boxY-22);
+      arrow(forkX+55,boxY+8,700,noBoxY,C.red,2.5); ctx.fillStyle=C.red; ctx.font=`bold 11px Arial`; ctx.textAlign='left'; ctx.fillText('NO',648,boxY+28);
+      arrow(820,yesBoxY,848,yesBoxY,C.purple,2.5);
+      arrow(820,noBoxY,848,noBoxY,C.blue,2.5);
+      ctx.restore();
+    }
+    // Animated data packets
+    if(t>4){
+      const pp=(t-4)*0.28%1;
+      if(t<10){
+        packetAlongPath([[imgX+45,boxY],[s3X-32,boxY],[rekX+55,boxY],[forkX-55,boxY]],clamp((t-4)/6,0,1),C.awsOrange,12);
+      }
+      if(t>9){
+        const p1=((t-9)*0.35)%1;
+        packetAlongPath([[forkX+55,boxY-8],[700,yesBoxY],[840,yesBoxY]],p1,C.green,11);
+        const p2=(((t-9)*0.35)+.5)%1;
+        packetAlongPath([[forkX+55,boxY+8],[700,noBoxY],[840,noBoxY]],p2,C.blue,11);
+      }
+    }
+    // Stats summary
+    if(t>18){
+      const sta=easeOut(clamp((t-18)/2,0,1));
+      ctx.save(); ctx.globalAlpha=sta;
+      ctx.fillStyle='rgba(255,153,0,0.12)'; rrect(ctx,200,450,600,72,10); ctx.fill();
+      ctx.strokeStyle=C.awsOrange; ctx.lineWidth=1.5; rrect(ctx,200,450,600,72,10); ctx.stroke();
+      txt('AWS Philosophy: Specialized tools, modular routing, pay-per-service',W/2,476,14,C.black,'center','600');
+      txt('Rekognition as the traffic cop → route to best-fit Lambda function',W/2,498,13,C.awsDark,'center','400');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 6: GCP ARCHITECTURE (80–110s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s6', label:'Act 2 — GCP Route', start:80, end:110,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#f0f4ff'); g.addColorStop(1,'#e8f0fe');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // GCP color strip
+    const stripColors=[C.gcpBlue,C.gcpRed,C.gcpYellow,C.gcpGreen];
+    stripColors.forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(i*(W/4),0,W/4,52); });
+    ctx.fillStyle='white'; ctx.font=`900 22px 'Poppins',Arial`; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText('THE GCP ROUTE',22,26);
+    ctx.font=`400 14px 'Poppins',Arial`; ctx.fillText('"The Heavyweight — Unified Simplicity"',280,26);
+    // Bob on right
+    const ba=easeOut(clamp(t/1.2,0,1));
+    ctx.save(); ctx.globalAlpha=ba; drawBob(845,380,0.82,'explaining','neutral',true); ctx.restore();
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1,0,1));
+      ctx.save(); ctx.globalAlpha=sa;
+      speechBubble(530,175,260,75,['GCP: one massive','multimodal model','does it ALL!'],'right',C.blueLt,C.gcpBlue,14);
+      ctx.restore();
+    }
+    // GCP flow - simpler, single path
+    const boxY=195, gemY=295, outY=400;
+    const imgX=160, gcsX=310, gemX=520, outX=750;
+    const nodes2=[
+      {d:.5,  fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-.5)/.8,0,1)); flowBox(imgX,boxY,90,56,'📷 Image','Input','white',C.black,C.gcpBlue); ctx.restore(); }},
+      {d:1.5, fn:()=>{ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-1.5)/.8,0,1)); ctx.translate(lerp(imgX+300,gcsX,easeOut(clamp((t-1.5)/.8,0,1))),boxY); ctx.scale(easeOut(clamp((t-1.5)/.8,0,1)),easeOut(clamp((t-1.5)/.8,0,1))); ctx.translate(-gcsX,-boxY); iconGCS(gcsX,boxY,64); flowBox(gcsX,boxY+50,110,26,'Cloud Storage','Trigger',C.blueLt,C.gcpBlue,'transparent'); ctx.restore(); }},
+      {d:3,   fn:()=>{
+        ctx.save(); const va=easeOut(clamp((t-3)/.8,0,1)); ctx.globalAlpha=va;
+        // Big Gemini icon with glow
+        ctx.shadowColor=C.gcpBlue; ctx.shadowBlur=20*va;
+        ctx.fillStyle='rgba(66,133,244,0.12)'; ctx.beginPath(); ctx.arc(gemX,gemY,72,0,Math.PI*2); ctx.fill();
+        ctx.shadowBlur=0;
+        iconGemini(gemX,gemY,108,t*.3);
+        flowBox(gemX,gemY+75,200,30,'Vertex AI / Gemini','Multimodal Analysis','rgba(66,133,244,0.12)',C.gcpBlue,'transparent');
+        ctx.restore();
+      }},
+      {d:6, fn:()=>{
+        const oa=easeOut(clamp((t-6)/1.5,0,1));
+        ctx.save(); ctx.globalAlpha=oa;
+        // Two outputs from Gemini
+        ctx.fillStyle='rgba(22,163,74,0.15)'; ctx.strokeStyle=C.green; ctx.lineWidth=2; rrect(ctx,outX-65,boxY-30,130,70,10); ctx.fill(); ctx.stroke();
+        txt('✅ If Text:',outX,boxY-14,12,C.green,'center','700');
+        txt('Enhanced Doc',outX,boxY+6,11,C.black,'center','600');
+        txt('99.2% OCR accuracy',outX,boxY+22,10,C.green,'center','400');
+        ctx.fillStyle='rgba(37,99,235,0.15)'; ctx.strokeStyle=C.blue; ctx.lineWidth=2; rrect(ctx,outX-65,boxY+60,130,70,10); ctx.fill(); ctx.stroke();
+        txt('❌ If Generic:',outX,boxY+76,12,C.blue,'center','700');
+        txt('Compressed File',outX,boxY+96,11,C.black,'center','600');
+        txt('71% size reduction',outX,boxY+112,10,C.blue,'center','400');
+        ctx.restore();
+      }},
+    ];
+    nodes2.forEach(n=>n.fn());
+    // Arrows
+    if(t>2){ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-2)/.8,0,1)); arrow(imgX+45,boxY,gcsX-55,boxY,C.gcpBlue,2.5); ctx.restore(); }
+    if(t>3.5){ ctx.save(); ctx.globalAlpha=easeOut(clamp((t-3.5)/.8,0,1)); arrow(gcsX+55,boxY,gemX-54,gemY-30,C.gcpBlue,2.5); ctx.restore(); }
+    if(t>7){
+      const aa=easeOut(clamp((t-7)/1,0,1));
+      ctx.save(); ctx.globalAlpha=aa;
+      arrow(gemX+54,gemY-18,outX-65,boxY,C.green,2.5);
+      arrow(gemX+54,gemY+18,outX-65,boxY+60,C.blue,2.5);
+      ctx.restore();
+    }
+    // Packet animation — single path
+    if(t>4){
+      const pp=clamp((t-4)/4,0,1);
+      packetAlongPath([[imgX+45,boxY],[gcsX-55,boxY],[gemX-54,gemY-20]],pp,C.gcpBlue,12);
+      if(t>9){
+        const p2=(t-9)*.28%1;
+        packetAlongPath([[gemX+54,gemY-18],[outX-65,boxY]],p2,C.gcpGreen,11);
+        packetAlongPath([[gemX+54,gemY+18],[outX-65,boxY+60]],(p2+.5)%1,C.gcpBlue,11);
+      }
+    }
+    // "One model vs many tools" callout
+    if(t>12){
+      const ca=easeOut(clamp((t-12)/2,0,1));
+      ctx.save(); ctx.globalAlpha=ca;
+      ctx.fillStyle='rgba(66,133,244,0.1)'; rrect(ctx,80,445,800,72,10); ctx.fill();
+      ctx.strokeStyle=C.gcpBlue; ctx.lineWidth=1.5; rrect(ctx,80,445,800,72,10); ctx.stroke();
+      txt('GCP Philosophy: One multimodal model handles everything — no routing logic needed.',W/2,470,14,C.black,'center','600');
+      txt('Vertex AI Gemini analyzes, decides, and processes in a single API call.',W/2,492,13,C.gcpBlue,'center','400');
+      ctx.restore();
+    }
+    // Key insight: Contrast with AWS
+    if(t>20){
+      const ia=easeOut(clamp((t-20)/2,0,1));
+      ctx.save(); ctx.globalAlpha=ia;
+      badge(W/2-200,415,400,26,'vs AWS: 1 model vs 4+ services',C.gcpBlue,'white',13);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 7: SIDE-BY-SIDE COMPARISON (110–128s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s7', label:'Act 2 — Side-by-Side Race', start:110, end:128,
+  draw(ctx,t,p){
+    // Split bg
+    const g1=ctx.createLinearGradient(0,0,W/2,0); g1.addColorStop(0,'#fff8f0'); g1.addColorStop(1,'#fff3e0');
+    ctx.fillStyle=g1; ctx.fillRect(0,0,W/2,H);
+    const g2=ctx.createLinearGradient(W/2,0,W,0); g2.addColorStop(0,'#f0f4ff'); g2.addColorStop(1,'#e8f0fe');
+    ctx.fillStyle=g2; ctx.fillRect(W/2,0,W/2,H);
+    // Headers
+    ctx.fillStyle=C.awsOrange; ctx.fillRect(0,0,W/2,48);
+    ctx.fillStyle='white'; ctx.font=`900 20px 'Poppins',Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('AWS — Modular',W/4,24);
+    const stripColors=[C.gcpBlue,C.gcpRed,C.gcpYellow,C.gcpGreen];
+    stripColors.forEach((c,i)=>{ ctx.fillStyle=c; ctx.fillRect(W/2+i*(W/8),0,W/8,48); });
+    ctx.fillStyle='white'; ctx.font=`900 20px 'Poppins',Arial`; ctx.textAlign='center';
+    ctx.fillText('GCP — Unified',W*3/4,24);
+    // Divider
+    ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=3; ctx.setLineDash([8,5]);
+    ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(W/2,H/2,28,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='white'; ctx.font=`bold 14px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('VS',W/2,H/2);
+    // AWS mini flow
+    const fy=140; const aw=80;
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    const awsNodes=[[80,fy,'📷','Input'],[170,fy,'S3','Bucket'],[260,fy,'👁','Rekog.'],[350,fy,'?','Route']];
+    awsNodes.forEach(([nx,ny,ic,lb])=>{ flowBox(nx,ny,72,46,ic,lb,'rgba(255,153,0,0.18)',C.awsDark,C.awsOrange); if(nx>80) arrow(nx-36-4,ny,nx-36+4,ny,C.awsOrange,2); });
+    // Fork
+    flowBox(350,fy-50,70,34,'✅ YES','→ AI','rgba(22,163,74,0.2)',C.green,C.green);
+    flowBox(350,fy+50,70,34,'❌ NO','→ ZIP','rgba(37,99,235,0.2)',C.blue,C.blue);
+    iconGenAI(448,fy-50,44); iconPillow(448,fy+50,44);
+    arrow(386,fy-12,420,fy-50,C.green,2); arrow(386,fy+12,420,fy+50,C.blue,2);
+    ctx.restore();
+    // GCP mini flow
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    flowBox(580,fy,72,46,'📷','Input','rgba(66,133,244,0.18)',C.gcpBlue,C.gcpBlue);
+    arrow(616,fy,656,fy,C.gcpBlue,2);
+    iconGCS(700,fy,58); arrow(729,fy,768,fy,C.gcpBlue,2);
+    iconGemini(830,fy,78,t*.3);
+    ctx.fillStyle=C.gcpBlue; ctx.font=`10px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('One model,',830,fy+58); ctx.fillText('all decisions',830,fy+72);
+    ctx.restore();
+    // Race / timing bars
+    if(t>3){
+      const ra=easeOut(clamp((t-3)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ra;
+      txt('⏱ Processing Speed',W/4,270,16,C.awsDark,'center','700');
+      // AWS timing bar
+      const awsTotal=280, awsMs=320; // ms
+      const awsFill=clamp((t-3)/3,0,1)*awsTotal;
+      ctx.fillStyle='#dde'; rrect(ctx,30,290,awsTotal,22,8); ctx.fill();
+      ctx.fillStyle=C.awsOrange; rrect(ctx,30,290,awsFill,22,8); ctx.fill();
+      txt('280ms — Rekognition + routing',155,323,12,C.awsDark,'center','600');
+      txt('⏱ Processing Speed',W*3/4,270,16,C.gcpBlue,'center','700');
+      const gcpTotal=280, gcpMs=1400;
+      const gcpFill=clamp((t-3.5)/3,0,1)*gcpTotal*1.1; // longer
+      ctx.fillStyle='#dde'; rrect(ctx,530,290,gcpTotal*1.1,22,8); ctx.fill();
+      ctx.fillStyle=C.gcpBlue; rrect(ctx,530,290,Math.min(gcpFill,gcpTotal*1.1),22,8); ctx.fill();
+      txt('1,400ms — Gemini single call',700,323,12,C.gcpBlue,'center','600');
+      ctx.restore();
+    }
+    if(t>7){
+      const ca=easeOut(clamp((t-7)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ca;
+      txt('💰 Cost per 1,000 images',W/4,355,15,C.awsDark,'center','700');
+      badge(55,370,220,36,'AWS: ~$2.10',C.awsOrange,'white',15);
+      txt('💰 Cost per 1,000 images',W*3/4,355,15,C.gcpBlue,'center','700');
+      badge(530,370,220,36,'GCP: ~$6.80',C.gcpBlue,'white',15);
+      ctx.restore();
+    }
+    if(t>11){
+      const aa=easeOut(clamp((t-11)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=aa;
+      txt('🎯 OCR Accuracy',W/4,430,15,C.awsDark,'center','700');
+      badge(70,445,192,34,'AWS: 96.8%',C.awsOrange,'white',14);
+      txt('🎯 OCR Accuracy',W*3/4,430,15,C.gcpBlue,'center','700');
+      badge(540,445,220,34,'GCP: 99.2% ✨',C.gcpBlue,'white',14);
+      ctx.restore();
+    }
+    // Animated packets racing
+    if(t>2){
+      const awsP=((t-2)*.22)%1;
+      packetAlongPath([[80,fy],[170,fy],[260,fy],[350,fy-12],[448,fy-50]],awsP,C.awsOrange,10);
+      const gcpP=((t-2)*.15)%1;
+      packetAlongPath([[580,fy],[700,fy],[830,fy]],gcpP,C.gcpBlue,10);
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 8: THE VERDICT — METRICS (128–158s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s8', label:'Act 3 — The Verdict', start:128, end:158,
+  draw(ctx,t,p){
+    fillBG(C.bgHosp);
+    // Title
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    strokeTxt('The Forensic Verdict',W/2,38,32,C.black,'rgba(200,230,240,0.8)');
+    ctx.restore();
+    // Bob
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/1,0,1));
+    drawBob(120,390,0.85,'explaining','neutral');
+    ctx.restore();
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1,0,1));
+      ctx.save(); ctx.globalAlpha=sa;
+      speechBubble(150,210,240,65,['Checking logs from','DynamoDB & Firestore…'],'right',C.goldLt,C.gold,14);
+      ctx.restore();
+    }
+    // Log panels
+    if(t>3){
+      const la=easeOut(clamp((t-3)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=la;
+      // DynamoDB log (AWS)
+      ctx.fillStyle='#0f172a'; rrect(ctx,240,75,330,180,8); ctx.fill();
+      ctx.fillStyle=C.awsOrange; ctx.font=`bold 12px monospace`; ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillText('● DynamoDB — AWS Execution Log',252,86);
+      ctx.fillStyle='#22d3ee'; ctx.font=`10px monospace`;
+      const awsLog=[
+        {t:4,  txt:'[00:00:280ms] Rekognition: text_found=TRUE'},
+        {t:5,  txt:'[00:00:380ms] Lambda: routing to GenAI path'},
+        {t:6,  txt:'[00:00:1820ms] GenAI: doc enhanced @ 96.8%'},
+        {t:7,  txt:'[00:00:320ms] Rekognition: text_found=FALSE'},
+        {t:8,  txt:'[00:00:640ms] Pillow: compressed 68% ✓'},
+        {t:9,  txt:'[cost] $0.00210 per 1,000 requests'},
+      ];
+      awsLog.forEach((log,i)=>{
+        if(t<log.t) return;
+        const la2=easeOut(clamp((t-log.t)/.5,0,1));
+        ctx.globalAlpha=la2; ctx.fillText(log.txt,252,104+i*15);
+      });
+      ctx.globalAlpha=la;
+      // Firestore log (GCP)
+      ctx.fillStyle='#0f172a'; rrect(ctx,590,75,330,180,8); ctx.fill();
+      ctx.fillStyle=C.gcpBlue; ctx.font=`bold 12px monospace`; ctx.textAlign='left';
+      ctx.fillText('● Firestore — GCP Execution Log',602,86);
+      ctx.fillStyle='#22d3ee'; ctx.font=`10px monospace`;
+      const gcpLog=[
+        {t:4.5,txt:'[00:00:1400ms] Gemini: text=TRUE → enhance'},
+        {t:5.5,txt:'[00:01:2800ms] Output: 99.2% OCR accuracy'},
+        {t:6.5,txt:'[00:00:1350ms] Gemini: text=FALSE → compress'},
+        {t:7.5,txt:'[00:01:2750ms] Output: 71% reduction ✓'},
+        {t:8.5,txt:'[cost] $0.00680 per 1,000 requests'},
+        {t:9.5,txt:'[note] 3.24x costlier than AWS route'},
+      ];
+      gcpLog.forEach((log,i)=>{
+        if(t<log.t) return;
+        const la2=easeOut(clamp((t-log.t)/.5,0,1));
+        ctx.globalAlpha=la2; ctx.fillText(log.txt,602,104+i*15);
+      });
+      ctx.restore();
+    }
+
+    // ── COMPARISON CHARTS ──
+    if(t>11){
+      const ca=easeOut(clamp((t-11)/2,0,1));
+      ctx.save(); ctx.globalAlpha=ca;
+      // Chart title
+      txt('Benchmark Results',W/2,278,18,C.black,'center','700');
+      const metrics=[
+        {label:'Latency',      aws:320,  gcp:1400, unit:'ms',    awsWin:true,  maxVal:1500},
+        {label:'Cost/1K imgs', aws:2.10, gcp:6.80, unit:'$',     awsWin:true,  maxVal:7, dp:2},
+        {label:'OCR Accuracy', aws:96.8, gcp:99.2, unit:'%',     awsWin:false, maxVal:100},
+        {label:'Code Complexity',aws:8,  gcp:3,    unit:'svcs',  awsWin:false, maxVal:10},
+      ];
+      metrics.forEach((m,i)=>{
+        if(t<11+i*1.5) return;
+        const ma=easeOut(clamp((t-11-i*1.5)/1.5,0,1));
+        ctx.globalAlpha=ca*ma;
+        const bx=235+i*175, by=300, bw=140, maxH=100;
+        // Bar bg
+        ctx.fillStyle='rgba(0,0,0,0.08)'; ctx.fillRect(bx,by,bw/2-4,maxH); ctx.fillRect(bx+bw/2+4,by,bw/2-4,maxH);
+        // AWS bar
+        const awsH=maxH*(m.aws/m.maxVal)*ma;
+        ctx.fillStyle=C.awsOrange; ctx.fillRect(bx,by+maxH-awsH,bw/2-4,awsH);
+        // GCP bar
+        const gcpH=maxH*(m.gcp/m.maxVal)*ma;
+        ctx.fillStyle=C.gcpBlue; ctx.fillRect(bx+bw/2+4,by+maxH-gcpH,bw/2-4,gcpH);
+        // Labels
+        ctx.fillStyle=C.black; ctx.font=`bold 11px Arial`; ctx.textAlign='center';
+        ctx.fillText(m.label,bx+bw/2,by+maxH+14);
+        const awsVal=m.dp?m.aws.toFixed(m.dp):m.aws; const gcpVal=m.dp?m.gcp.toFixed(m.dp):m.gcp;
+        ctx.fillStyle=C.awsOrange; ctx.font=`bold 10px Arial`; ctx.fillText(awsVal+m.unit,bx+bw/4,by+maxH-awsH-8);
+        ctx.fillStyle=C.gcpBlue; ctx.font=`bold 10px Arial`; ctx.fillText(gcpVal+m.unit,bx+bw*3/4,by+maxH-gcpH-8);
+        // Winner badge
+        if(ma>.8){
+          const winColor=m.awsWin?C.awsOrange:C.gcpBlue;
+          const winLabel=m.awsWin?'AWS ✓':'GCP ✓';
+          ctx.fillStyle=winColor; ctx.font=`bold 9px Arial`; ctx.textAlign='center';
+          ctx.fillText(winLabel,bx+bw/2,by+maxH+26);
+        }
+      });
+      // Legend
+      ctx.globalAlpha=ca;
+      ctx.fillStyle=C.awsOrange; rrect(ctx,360,420,70,16,4); ctx.fill();
+      ctx.fillStyle='white'; ctx.font=`bold 10px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('AWS',395,428);
+      ctx.fillStyle=C.gcpBlue; rrect(ctx,440,420,70,16,4); ctx.fill();
+      ctx.fillStyle='white'; ctx.font=`bold 10px Arial`; ctx.fillText('GCP',475,428);
+      ctx.restore();
+    }
+    // Verdict summary
+    if(t>20){
+      const va=easeOut(clamp((t-20)/2,0,1));
+      ctx.save(); ctx.globalAlpha=va;
+      ctx.fillStyle='rgba(22,163,74,0.1)'; rrect(ctx,230,448,700,72,10); ctx.fill();
+      ctx.strokeStyle=C.green; ctx.lineWidth=1.5; rrect(ctx,230,448,700,72,10); ctx.stroke();
+      txt('AWS wins on Speed & Cost (3.2x cheaper, 4.4x faster)',W/2,468,14,C.awsDark,'center','600');
+      txt('GCP wins on Accuracy & Simplicity (99.2% OCR, 5x fewer services)',W/2,490,14,C.gcpBlue,'center','600');
+      txt('Recommendation: AWS for scale/cost · GCP for maximum accuracy',W/2,510,13,C.green,'center','700');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 9: THE RESOLUTION (158–173s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s9', label:'Act 3 — The Resolution', start:158, end:173,
+  draw(ctx,t,p){
+    fillBG(C.bgHosp);
+    // Hospital room feel
+    ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(22,163,74,0.06)'; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    strokeTxt('Mission Accomplished',W/2,44,34,C.green,'rgba(200,240,210,0.8)');
+    ctx.restore();
+    // Bob
+    const bobA=easeOut(clamp(t/1.2,0,1));
+    ctx.save(); ctx.globalAlpha=bobA; drawBob(200,390,0.9,'happy','happy'); ctx.restore();
+    // Patient with tablet
+    const patA=easeOut(clamp((t-1)/1.2,0,1));
+    ctx.save(); ctx.globalAlpha=patA;
+    drawPatient(720,390,0.92,'holding_tablet','happy');
+    // Tablet content
+    iconTablet(720,310,120,(c,ox,oy,ow,oh)=>{
+      // Clear medical form
+      ctx.fillStyle='white'; ctx.fillRect(720+ox,310+oy,ow,oh);
+      ctx.fillStyle=C.black; ctx.font=`bold 8px Arial`; ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillText('MEDICAL REPORT',720+ox+5,310+oy+4);
+      ctx.fillStyle='rgba(0,0,0,0.08)';
+      [[720+ox+4,310+oy+18,ow-8,6],[720+ox+4,310+oy+30,ow-8,6],[720+ox+4,310+oy+42,ow-8,6],
+       [720+ox+4,310+oy+54,ow*0.7,6],[720+ox+4,310+oy+66,ow-8,6]].forEach(([lx,ly,lw,lh])=>{
+        ctx.fillRect(lx,ly,lw,lh);
+      });
+      ctx.fillStyle=C.green; ctx.font=`bold 7px Arial`; ctx.textAlign='center';
+      ctx.fillText('HIGH CONTRAST ✓',720+ox+ow/2,310+oy+oh-14);
+    });
+    ctx.restore();
+    // Enhanced document glow
+    if(t>2){
+      ctx.save(); ctx.globalAlpha=easeOut(clamp((t-2)/1,0,1));
+      // Happy patient bubble
+      speechBubble(440,210,280,90,['I can finally read','my own medical form!','Thank you! 😊'],'right','rgba(240,255,244,0.95)',C.green,16);
+      // Bob response
+      speechBubble(60,175,270,80,['The system worked!','Both clouds delivered','healthcare access.'],'right','rgba(235,245,255,0.95)',C.blue,14);
+      ctx.restore();
+    }
+    // Success badges
+    if(t>5){
+      const ba=easeOut(clamp((t-5)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ba;
+      badge(W/2-310,450,200,38,'✅ Storage Saved',C.awsOrange,'white',14);
+      badge(W/2-85,450,180,38,'✅ Text Enhanced',C.purple,'white',14);
+      badge(W/2+120,450,190,38,'✅ Accessible Docs',C.green,'white',14);
+      ctx.restore();
+    }
+    // Confetti
+    if(t>3){
+      const cols=[C.awsOrange,C.gcpBlue,C.green,C.gcpRed,C.gcpYellow,C.purple];
+      ctx.save(); ctx.globalAlpha=.7;
+      for(let i=0;i<30;i++){
+        const cx2=(i*137+t*40)%W, cy2=(i*97+Math.sin(i*2)*30+t*30)%H;
+        ctx.fillStyle=cols[i%cols.length]; ctx.save(); ctx.translate(cx2,cy2); ctx.rotate(i*.8+t);
+        ctx.fillRect(-5,-3,10,6); ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE 10: CONCLUSION (173–180s)
+// ═══════════════════════════════════════════════════════════════
+{ id:'s10', label:'Conclusion', start:173, end:180,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#0f172a'); g.addColorStop(.5,'#1e1b4b'); g.addColorStop(1,'#0d3018');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // Stars
+    ctx.save(); ctx.globalAlpha=.4;
+    for(let i=0;i<80;i++){
+      const sx=(i*173+10)%W, sy=(i*113+5)%H, sr=.7+Math.sin(t*3+i)*.4;
+      ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    // Main message
+    const ma=easeOut(clamp(t/.8,0,1));
+    ctx.save(); ctx.globalAlpha=ma;
+    strokeTxt('Regardless of which cloud won',W/2,105,24,'#94a3b8','rgba(0,0,0,0.5)');
+    strokeTxt('the benchmark…',W/2,138,24,'#94a3b8','rgba(0,0,0,0.5)');
+    ctx.restore();
+    if(t>1.5){
+      ctx.save(); ctx.globalAlpha=easeOut(clamp((t-1.5)/1.5,0,1));
+      strokeTxt('The system optimized storage',W/2,195,26,'white','rgba(0,0,0,0.5)');
+      strokeTxt('& made healthcare accessible again.',W/2,232,26,C.gcpGreen,'rgba(0,0,0,0.5)');
+      ctx.restore();
+    }
+    if(t>3){
+      const ta=easeOut(clamp((t-3)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ta;
+      // AWS result
+      ctx.fillStyle='rgba(255,153,0,0.15)'; rrect(ctx,60,285,370,90,12); ctx.fill();
+      ctx.strokeStyle=C.awsOrange; ctx.lineWidth=2; rrect(ctx,60,285,370,90,12); ctx.stroke();
+      txt('AWS Route',245,308,18,C.awsOrange,'center','700');
+      txt('✓ $2.10/K · 280ms · 96.8% OCR',245,332,13,'#fbbf24','center','600');
+      txt('Best for: Scale, Cost Efficiency',245,353,12,'#fdba74','center','400');
+      // GCP result
+      ctx.fillStyle='rgba(66,133,244,0.15)'; rrect(ctx,530,285,370,90,12); ctx.fill();
+      ctx.strokeStyle=C.gcpBlue; ctx.lineWidth=2; rrect(ctx,530,285,370,90,12); ctx.stroke();
+      txt('GCP Route',715,308,18,C.gcpBlue,'center','700');
+      txt('✓ $6.80/K · 1400ms · 99.2% OCR',715,332,13,'#60a5fa','center','600');
+      txt('Best for: Accuracy, Simplicity',715,353,12,'#93c5fd','center','400');
+      ctx.restore();
+    }
+    if(t>4.5){
+      const fa=easeOut(clamp((t-4.5)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=fa;
+      strokeTxt('Engineering for Accessibility ✓',W/2,430,30,'#4ade80','rgba(0,0,0,0.7)');
+      // Both logos
+      iconGemini(W/2+130,460,44,t*.3);
+      ctx.fillStyle=C.awsOrange; ctx.font=`900 16px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('aws',W/2-100,460+floatY(t,4));
+      ctx.restore();
+    }
+    if(t>5.5){
+      const ca=easeOut(clamp((t-5.5)/1.5,0,1));
+      ctx.save(); ctx.globalAlpha=ca*0.7;
+      const cols=[C.awsOrange,C.gcpBlue,C.gcpGreen,C.gcpRed,C.gcpYellow,C.purple];
+      for(let i=0;i<35;i++){
+        const cx2=(i*137+t*50)%W, cy2=(i*89+Math.sin(i*1.5)*20+t*35)%(H-80)+40;
+        ctx.fillStyle=cols[i%cols.length]; ctx.save(); ctx.translate(cx2,cy2); ctx.rotate(i+t*2);
+        ctx.fillRect(-5,-3,10,6); ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+},
+];
+
+// ─── CONTROLLER ──────────────────────────────────────────────────
+let globalTime=0, playing=false, lastTs=null, raf=null;
+const progFill=document.getElementById('progress-fill');
+const timeDisp=document.getElementById('time-display');
+const sceneLbl=document.getElementById('scene-label');
+const playBtn=document.getElementById('play-btn');
+const restBtn=document.getElementById('restart-btn');
+const overlay=document.getElementById('start-overlay');
+const startBtn=document.getElementById('start-btn');
+const timeline=document.getElementById('timeline');
+
+const fmtT=s=>`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`;
+
+function findScene(t){ for(const s of SCENES) if(t>=s.start&&t<s.end) return s; return SCENES[SCENES.length-1]; }
+
+function render(t){
+  ctx.clearRect(0,0,W,H);
+  const sc=findScene(t);
+  if(sc){ const lt=t-sc.start; try{ sc.draw(ctx,lt,clamp(lt/(sc.end-sc.start),0,1)); }catch(e){ console.warn(e); } }
+}
+
+function updateUI(){
+  progFill.style.width=(globalTime/TOTAL*100)+'%';
+  timeDisp.textContent=`${fmtT(globalTime)} / ${fmtT(TOTAL)}`;
+  const sc=findScene(globalTime);
+  if(sc) sceneLbl.textContent=`${SCENES.indexOf(sc)+1}/${SCENES.length} — ${sc.label}`;
+  playBtn.textContent=playing?'⏸':'▶';
+}
+
+function tick(ts){
+  if(lastTs!==null&&playing){ const dt=Math.min((ts-lastTs)/1000,.1); globalTime=Math.min(globalTime+dt,TOTAL); }
+  lastTs=ts; render(globalTime); updateUI();
+  if(globalTime>=TOTAL){ playing=false; updateUI(); lastTs=null; return; }
+  raf=requestAnimationFrame(tick);
+}
+
+function play(){ if(globalTime>=TOTAL){globalTime=0;lastTs=null;} playing=true; if(!raf) raf=requestAnimationFrame(tick); }
+function pause(){ playing=false; lastTs=null; }
+function restart(){ globalTime=0; lastTs=null; playing=true; raf=requestAnimationFrame(tick); }
+
+playBtn.addEventListener('click',()=>playing?pause():play());
+restBtn.addEventListener('click',restart);
+startBtn.addEventListener('click',()=>{ overlay.classList.add('hidden'); play(); });
+timeline.addEventListener('click',e=>{
+  const r=timeline.getBoundingClientRect();
+  globalTime=clamp((e.clientX-r.left)/r.width*TOTAL,0,TOTAL);
+  lastTs=null; render(globalTime); updateUI();
+});
+
+render(0); updateUI();
+</script>
+</body>
+</html>
