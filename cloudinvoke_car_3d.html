@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CloudInvoke 3D — Number Plate Detective</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#050810;overflow:hidden;width:960px;height:540px;}
+#c{display:block;width:960px;height:540px;}
+#overlay{position:absolute;top:0;left:0;width:960px;height:540px;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="overlay"></canvas>
+<script src="/vendor/three.min.js"></script>
+<script>
+"use strict";
+const W=960,H=540,TOTAL=120;
+
+// ── 2D OVERLAY CANVAS ─────────────────────────────────────────────
+const ov=document.getElementById('overlay'),o2=ov.getContext('2d');
+ov.width=W;ov.height=H;
+
+// ── THREE.JS SETUP ───────────────────────────────────────────────
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('c'),antialias:true,alpha:false});
+renderer.setSize(W,H);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x050810);
+scene.fog=new THREE.Fog(0x080d1a,60,220);
+
+const camera=new THREE.PerspectiveCamera(55,W/H,0.1,500);
+camera.position.set(0,30,60);camera.lookAt(0,0,0);
+
+// ── LIGHTS ───────────────────────────────────────────────────────
+const ambient=new THREE.AmbientLight(0x1a2a4a,0.7);scene.add(ambient);
+const moonLight=new THREE.DirectionalLight(0x4060aa,0.5);
+moonLight.position.set(-30,60,20);moonLight.castShadow=true;
+moonLight.shadow.mapSize.set(1024,1024);moonLight.shadow.camera.near=1;
+moonLight.shadow.camera.far=200;moonLight.shadow.camera.left=-80;
+moonLight.shadow.camera.right=80;moonLight.shadow.camera.top=80;
+moonLight.shadow.camera.bottom=-80;scene.add(moonLight);
+
+// Street lights
+function addStreetLight(x,z,col=0xffe97a){
+  const sl=new THREE.PointLight(col,1.5,35);sl.position.set(x,10,z);scene.add(sl);
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,10,8),new THREE.MeshLambertMaterial({color:0x555555}));
+  pole.position.set(x,5,z);scene.add(pole);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(.5,8,8),new THREE.MeshBasicMaterial({color:col}));
+  bulb.position.set(x,10.5,z);scene.add(bulb);
+}
+[-25,0,25].forEach(x=>{addStreetLight(x+5,-8);addStreetLight(x-5,8);});
+
+// Police light references for flashing
+const policeLight1=new THREE.PointLight(0xff0000,0,15);policeLight1.position.set(0,5,0);scene.add(policeLight1);
+const policeLight2=new THREE.PointLight(0x0055ff,0,15);policeLight2.position.set(0,5,0);scene.add(policeLight2);
+
+// ── GROUND & ROAD ────────────────────────────────────────────────
+const groundMat=new THREE.MeshLambertMaterial({color:0x1a2a1a});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),groundMat);
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+
+const roadMat=new THREE.MeshLambertMaterial({color:0x1a2030});
+const road=new THREE.Mesh(new THREE.PlaneGeometry(20,400),roadMat);
+road.rotation.x=-Math.PI/2;road.position.y=.01;road.receiveShadow=true;scene.add(road);
+
+// Road markings
+function addRoadLine(z){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(.25,3),new THREE.MeshBasicMaterial({color:0xffffff,opacity:.35,transparent:true}));
+  m.rotation.x=-Math.PI/2;m.position.set(0,.02,z);scene.add(m);
+}
+for(let z=-100;z<100;z+=8)addRoadLine(z);
+
+// Sidewalks
+const swMat=new THREE.MeshLambertMaterial({color:0x374151});
+[-12.5,12.5].forEach(x=>{
+  const sw=new THREE.Mesh(new THREE.PlaneGeometry(5,200),swMat);
+  sw.rotation.x=-Math.PI/2;sw.position.set(x,.02,0);scene.add(sw);
+});
+
+// ── BUILDINGS ────────────────────────────────────────────────────
+function createBuilding(x,z,w,d,h,color){
+  const mat=new THREE.MeshLambertMaterial({color});
+  const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  b.position.set(x,h/2,z);b.castShadow=true;b.receiveShadow=true;scene.add(b);
+  // Windows (emissive planes)
+  const wmat=new THREE.MeshBasicMaterial({color:0xffee99,opacity:.15,transparent:true});
+  for(let row=0;row<Math.floor((h-4)/4);row++){
+    for(let col=0;col<Math.floor((w-2)/3);col++){
+      if(Math.sin(x*row+z*col+17)>.3){
+        const wm=new THREE.Mesh(new THREE.PlaneGeometry(.8,1.2),wmat);
+        wm.position.set(x-w/2+2+col*3,2+row*4+1,z+d/2+.05);scene.add(wm);
+      }
+    }
+  }
+  return b;
+}
+// Left side buildings
+[{x:-28,z:-20,w:12,d:10,h:40,c:0x1e2a3a},{x:-25,z:5,w:10,d:8,h:28,c:0x243040},
+ {x:-30,z:25,w:14,d:12,h:55,c:0x1a2030},{x:-22,z:-45,w:8,d:7,h:20,c:0x2a3545}].forEach(b=>createBuilding(b.x,b.z,b.w,b.d,b.h,b.c));
+// Right side buildings
+[{x:28,z:-20,w:12,d:10,h:35,c:0x1e2a3a},{x:25,z:5,w:10,d:8,h:45,c:0x202838},
+ {x:30,z:25,w:14,d:12,h:25,c:0x1a2030},{x:22,z:-45,w:8,d:7,h:30,c:0x2a3545}].forEach(b=>createBuilding(b.x,b.z,b.w,b.d,b.h,b.c));
+
+// ── CARS ─────────────────────────────────────────────────────────
+function createCar(color,accentColor){
+  const g=new THREE.Group();
+  const bodyMat=new THREE.MeshLambertMaterial({color});
+  // Body
+  const body=new THREE.Mesh(new THREE.BoxGeometry(4,.9,2),bodyMat);
+  body.position.y=.45;body.castShadow=true;g.add(body);
+  // Cabin
+  const cabin=new THREE.Mesh(new THREE.BoxGeometry(2.2,.75,1.7),bodyMat);
+  cabin.position.set(-.3,1.2,0);cabin.castShadow=true;g.add(cabin);
+  // Windshields (blue tinted)
+  const glassMat=new THREE.MeshLambertMaterial({color:0x88ccff,opacity:.6,transparent:true});
+  const fw=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.65),glassMat);
+  fw.rotation.y=Math.PI/2;fw.position.set(.8,1.2,.0);g.add(fw);
+  const rw=new THREE.Mesh(new THREE.PlaneGeometry(1.6,.65),glassMat);
+  rw.rotation.y=-Math.PI/2;rw.position.set(-1.4,1.2,.0);g.add(rw);
+  // Wheels
+  const wheelMat=new THREE.MeshLambertMaterial({color:0x111111});
+  const hubMat=new THREE.MeshLambertMaterial({color:0x666666});
+  [[-1.5,.35,-1.1],[1.5,.35,-1.1],[-1.5,.35,1.1],[1.5,.35,1.1]].forEach(([wx,wy,wz])=>{
+    const wh=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.25,16),wheelMat);
+    wh.rotation.z=Math.PI/2;wh.position.set(wx,wy,wz);wh.castShadow=true;g.add(wh);
+    const hub=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.3,8),hubMat);
+    hub.rotation.z=Math.PI/2;hub.position.set(wx,wy,wz);g.add(hub);
+  });
+  // Headlights
+  const hlMat=new THREE.MeshBasicMaterial({color:0xffffcc});
+  const tl1=new THREE.Mesh(new THREE.BoxGeometry(.1,.25,.3),hlMat);
+  tl1.position.set(2,.5,-.65);g.add(tl1);
+  const tl2=new THREE.Mesh(new THREE.BoxGeometry(.1,.25,.3),hlMat);
+  tl2.position.set(2,.5,.65);g.add(tl2);
+  // Headlight point lights
+  const hl=new THREE.PointLight(0xffffcc,.8,10);hl.position.set(2.2,.5,0);g.add(hl);
+  // Taillights (red)
+  const tlMat=new THREE.MeshBasicMaterial({color:0xff3333});
+  const trl1=new THREE.Mesh(new THREE.BoxGeometry(.1,.2,.25),tlMat);
+  trl1.position.set(-2,.5,-.7);g.add(trl1);
+  const trl2=new THREE.Mesh(new THREE.BoxGeometry(.1,.2,.25),tlMat);
+  trl2.position.set(-2,.5,.7);g.add(trl2);
+  // Number plate
+  const plateCanvas=document.createElement('canvas');
+  plateCanvas.width=256;plateCanvas.height=96;
+  const pc=plateCanvas.getContext('2d');
+  pc.fillStyle='#fbbf24';pc.fillRect(0,0,256,96);
+  pc.strokeStyle='#1a1a1a';pc.lineWidth=4;pc.strokeRect(2,2,252,92);
+  pc.fillStyle='rgba(0,0,150,.9)';pc.fillRect(4,4,248,24);
+  pc.fillStyle='white';pc.font='bold 14px Arial';pc.textAlign='center';pc.fillText('IND  INDIA',128,18);
+  pc.fillStyle='#1a1a1a';pc.font='900 32px Courier New';pc.textAlign='center';pc.textBaseline='middle';pc.fillText('KA 09 AB 5562',128,65);
+  const plateTex=new THREE.CanvasTexture(plateCanvas);
+  const plateMesh=new THREE.Mesh(new THREE.PlaneGeometry(1.8,.5),new THREE.MeshBasicMaterial({map:plateTex}));
+  plateMesh.position.set(2.06,.3,0);g.add(plateMesh);
+  g.userData.plateCanvas=plateCanvas;g.userData.plateTex=plateTex;
+  return g;
+}
+
+const car1=createCar(0x1d4ed8,0x3b82f6); // Blue car (victim)
+const car2=createCar(0x991b1b,0xdc2626); // Red car (suspect)
+car1.position.set(-30,0,-2);car1.rotation.y=Math.PI/2;
+car2.position.set(30,0,2);car2.rotation.y=-Math.PI/2;
+scene.add(car1);scene.add(car2);
+
+// Police car
+const policeCar=createCar(0x1e3a8a,0x2563eb);
+// Police lights on roof
+const pl1=new THREE.Mesh(new THREE.BoxGeometry(.4,.2,.3),new THREE.MeshBasicMaterial({color:0xff0000}));
+pl1.position.set(0,1.65,-.3);policeCar.add(pl1);
+const pl2=new THREE.Mesh(new THREE.BoxGeometry(.4,.2,.3),new THREE.MeshBasicMaterial({color:0x0000ff}));
+pl2.position.set(0,1.65,.3);policeCar.add(pl2);
+policeCar.position.set(60,0,-2);policeCar.rotation.y=Math.PI/2;
+scene.add(policeCar);policeCar.visible=false;
+
+// ── CANVAS TEXTURE HELPER ─────────────────────────────────────────
+function makeLabel(text,lines,w=512,h=256,bg='#0a1628',border='#1e3a8a',fg='white'){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');
+  x.fillStyle=bg;x.fillRect(0,0,w,h);
+  x.strokeStyle=border;x.lineWidth=4;
+  x.beginPath();x.roundRect(2,2,w-4,h-4,16);x.stroke();
+  x.fillStyle='#1e3a8a';x.fillRect(0,0,w,40);
+  x.fillStyle=fg;x.font=`bold 22px 'Poppins',Arial`;x.textAlign='center';x.textBaseline='middle';
+  x.fillText(text,w/2,22);
+  x.fillStyle='rgba(255,255,255,0.85)';x.font=`16px Arial`;
+  lines.forEach((l,i)=>x.fillText(l,w/2,60+i*28));
+  const t=new THREE.CanvasTexture(c);
+  return t;
+}
+function makePanel(w=2,h=1,texFn){
+  const c=document.createElement('canvas');c.width=512;c.height=256;
+  texFn(c.getContext('2d'),c.width,c.height);
+  const t=new THREE.CanvasTexture(c);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:.95}));
+  return {mesh:m,canvas:c,tex:t};
+}
+
+// ── 3D UI PANELS ─────────────────────────────────────────────────
+// CloudInvoke logo panel
+const logoPanel=makePanel(10,5,(c,pw,ph)=>{
+  c.fillStyle='rgba(5,8,16,0.95)';c.fillRect(0,0,pw,ph);
+  c.strokeStyle='#2563eb';c.lineWidth=3;c.beginPath();c.roundRect(2,2,pw-4,ph-4,12);c.stroke();
+  // Cloud
+  c.fillStyle='#1e3a8a';
+  c.beginPath();c.arc(200,100,55,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(280,100,55,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(240,78,65,0,Math.PI*2);c.fill();
+  c.fillRect(155,100,210,60);
+  c.fillStyle='#2563eb';
+  c.beginPath();c.arc(200,100,48,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(280,100,48,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(240,78,58,0,Math.PI*2);c.fill();
+  c.fillRect(160,100,200,55);
+  // Lightning
+  c.fillStyle='#fbbf24';c.beginPath();c.moveTo(255,55);c.lineTo(230,105);c.lineTo(242,105);c.lineTo(224,148);c.lineTo(255,95);c.lineTo(243,95);c.closePath();c.fill();
+  c.fillStyle='white';c.font="bold 48px Arial";c.textAlign='center';c.textBaseline='middle';
+  c.fillText('CloudInvoke',360,120);
+  c.fillStyle='#93c5fd';c.font='24px Arial';
+  c.fillText('AI-Powered Image Enhancement',360,168);
+});
+logoPanel.mesh.position.set(0,8,5);scene.add(logoPanel.mesh);logoPanel.mesh.visible=false;
+
+// Blurry plate panel
+const blurryPanel=makePanel(8,4,(c,pw,ph)=>{
+  c.fillStyle='#111827';c.fillRect(0,0,pw,ph);
+  c.strokeStyle='#374151';c.lineWidth=3;c.beginPath();c.roundRect(2,2,pw-4,ph-4,10);c.stroke();
+  c.fillStyle='white';c.font='bold 20px Arial';c.textAlign='center';c.textBaseline='top';
+  c.fillText('⚠ EVIDENCE PHOTO — UNREADABLE',pw/2,12);
+  c.filter='blur(6px)';
+  c.fillStyle='#fbbf24';c.beginPath();c.roundRect(60,55,390,130,8);c.fill();
+  c.strokeStyle='#1a1a1a';c.lineWidth=4;c.beginPath();c.roundRect(60,55,390,130,8);c.stroke();
+  c.fillStyle='rgba(0,0,150,.9)';c.fillRect(64,59,382,36);
+  c.fillStyle='white';c.font='bold 20px Arial';c.fillText('IND  INDIA',256,77);
+  c.fillStyle='#1a1a1a';c.font='900 52px Courier New';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('KA 09 AB 5562',256,148);
+  c.filter='none';
+  c.fillStyle='#ef4444';c.font='bold 22px Arial';c.textAlign='center';
+  c.fillText('CANNOT IDENTIFY — TOO BLURRY',pw/2,210);
+});
+blurryPanel.mesh.position.set(0,6,4);scene.add(blurryPanel.mesh);blurryPanel.mesh.visible=false;
+
+// Processing panel
+const procPanel=makePanel(10,5,(c,pw,ph)=>{
+  c.fillStyle='rgba(5,8,20,.96)';c.fillRect(0,0,pw,ph);
+  c.strokeStyle='#2563eb';c.lineWidth=3;c.beginPath();c.roundRect(2,2,pw-4,ph-4,12);c.stroke();
+  c.fillStyle='#1e3a8a';c.fillRect(0,0,pw,42);
+  c.fillStyle='white';c.font='bold 22px Arial';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('☁ CloudInvoke — Processing Pipeline',pw/2,22);
+  const steps=[
+    {label:'1. Text Detection (OCR)','sub':'Vision AI scanning image for text regions','col':'#7c3aed'},
+    {label:'2. AI Enhancement','sub':'Sharpening • Deblur • Contrast boost','col':'#2563eb'},
+    {label:'3. Number Plate OCR','sub':'Extracting text: KA 09 AB 5562','col':'#059669'},
+  ];
+  steps.forEach((s,i)=>{
+    const sy=60+i*58;
+    c.fillStyle=s.col+'22';c.strokeStyle=s.col;c.lineWidth=2;
+    c.beginPath();c.roundRect(16,sy,pw-32,48,8);c.fill();c.stroke();
+    c.fillStyle=s.col;c.font='bold 18px Arial';c.textAlign='left';c.textBaseline='top';
+    c.fillText(s.label,28,sy+8);
+    c.fillStyle='rgba(255,255,255,0.7)';c.font='14px Arial';c.fillText(s.sub,28,sy+30);
+    c.fillStyle='#22c55e';c.font='bold 20px Arial';c.textAlign='right';c.fillText('✓',pw-24,sy+12);
+  });
+  c.fillStyle='rgba(34,197,94,.15)';c.strokeStyle='#22c55e';c.lineWidth=2;
+  c.beginPath();c.roundRect(16,235,pw-32,38,8);c.fill();c.stroke();
+  c.fillStyle='#22c55e';c.font='bold 20px Arial';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('✅  ALL STEPS COMPLETE — IMAGE ENHANCED',pw/2,254);
+});
+procPanel.mesh.position.set(0,6,4);scene.add(procPanel.mesh);procPanel.mesh.visible=false;
+
+// Clear plate panel
+const clearPanel=makePanel(10,4.5,(c,pw,ph)=>{
+  c.fillStyle='rgba(5,15,10,.96)';c.fillRect(0,0,pw,ph);
+  c.strokeStyle='#22c55e';c.lineWidth=4;c.beginPath();c.roundRect(2,2,pw-4,ph-4,12);c.stroke();
+  c.fillStyle='#14532d';c.fillRect(0,0,pw,42);
+  c.fillStyle='#4ade80';c.font='bold 24px Arial';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('✅ ENHANCED — CRYSTAL CLEAR',pw/2,22);
+  // Clear plate
+  c.fillStyle='#fbbf24';c.beginPath();c.roundRect(56,56,400,130,8);c.fill();
+  c.strokeStyle='#1a1a1a';c.lineWidth=4;c.beginPath();c.roundRect(56,56,400,130,8);c.stroke();
+  c.fillStyle='rgba(0,0,150,.9)';c.fillRect(60,60,392,36);
+  c.fillStyle='white';c.font='bold 22px Arial';c.textAlign='center';c.fillText('IND  INDIA',256,79);
+  c.fillStyle='#1a1a1a';c.font='900 56px Courier New';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('KA 09 AB 5562',256,152);
+  c.strokeStyle='#22c55e';c.lineWidth=3;c.setLineDash([8,4]);c.beginPath();c.roundRect(56,56,400,130,8);c.stroke();c.setLineDash([]);
+  c.fillStyle='#4ade80';c.font='bold 22px Arial';c.textAlign='center';c.textBaseline='top';
+  c.fillText('Number Plate Extracted: KA 09 AB 5562',pw/2,205);
+  c.fillStyle='rgba(255,255,255,0.6)';c.font='16px Arial';
+  c.fillText('Confidence: 98.4%  |  Saved to: KA_09_AB_5562.txt',pw/2,235);
+});
+clearPanel.mesh.position.set(0,6,4);scene.add(clearPanel.mesh);clearPanel.mesh.visible=false;
+
+// ── CRASH PARTICLES ───────────────────────────────────────────────
+const particleCount=200;
+const particleGeo=new THREE.BufferGeometry();
+const pPositions=new Float32Array(particleCount*3);
+const pVelocities=[];
+for(let i=0;i<particleCount;i++){
+  const angle=Math.random()*Math.PI*2,speed=2+Math.random()*4;
+  pVelocities.push({vx:Math.cos(angle)*speed,vy:Math.random()*3+1,vz:Math.sin(angle)*speed,t:Math.random()*.5});
+  pPositions[i*3]=0;pPositions[i*3+1]=0;pPositions[i*3+2]=0;
+}
+particleGeo.setAttribute('position',new THREE.BufferAttribute(pPositions,3));
+const particleMat=new THREE.PointsMaterial({color:0xff9900,size:.4,sizeAttenuation:true});
+const particles=new THREE.Points(particleGeo,particleMat);
+particles.visible=false;scene.add(particles);
+
+// ── CAMERA ANIMATION ──────────────────────────────────────────────
+const camKeys=[
+  {t:0,   pos:[0,25,55],  target:[0,0,0]},    // wide aerial title
+  {t:8,   pos:[0,40,2],   target:[0,0,0]},    // bird eye: normal traffic
+  {t:14,  pos:[-15,8,12], target:[-5,0,-5]},  // side view: cars approaching
+  {t:20,  pos:[0,5,15],   target:[0,1.5,0]},  // front view: crash
+  {t:28,  pos:[15,6,8],   target:[0,1,0]},    // witness perspective
+  {t:35,  pos:[5,4,2],    target:[-2,0.5,-4]},// close on number plate
+  {t:44,  pos:[8,18,18],  target:[0,0,0]},    // pull back
+  {t:52,  pos:[0,8,25],   target:[0,5,0]},    // facing UI panel
+  {t:70,  pos:[0,6,18],   target:[0,4,0]},    // processing view
+  {t:86,  pos:[0,6,18],   target:[0,5,0]},    // clear plate reveal
+  {t:100, pos:[20,10,18], target:[-5,1,0]},   // police car arrives
+  {t:112, pos:[0,30,50],  target:[0,0,0]},    // wide conclusion
+];
+
+function getCamState(t){
+  let a=camKeys[0],b=camKeys[camKeys.length-1];
+  for(let i=0;i<camKeys.length-1;i++){if(t>=camKeys[i].t&&t<camKeys[i+1].t){a=camKeys[i];b=camKeys[i+1];break;}}
+  const dur=b.t-a.t,p=dur>0?Math.min((t-a.t)/dur,1):1;
+  const ep=p<.5?2*p*p:-1+(4-2*p)*p;
+  return{
+    pos:a.pos.map((v,i)=>v+(b.pos[i]-v)*ep),
+    target:a.target.map((v,i)=>v+(b.target[i]-v)*ep)
+  };
+}
+
+// ── SCENE STATE LOGIC ─────────────────────────────────────────────
+let sceneState={crashDone:false,witnessShown:false,uiShown:false};
+
+function updateScene(t){
+  // Camera
+  const cs=getCamState(t);
+  camera.position.set(...cs.pos);camera.lookAt(new THREE.Vector3(...cs.target));
+
+  // S1 title: show logo panel
+  logoPanel.mesh.visible=t<8;
+  logoPanel.mesh.rotation.y=Math.sin(t*.5)*.08;
+
+  // S2: Cars approaching (8-20s)
+  if(t<8){car1.position.set(-30,0,-2);car2.position.set(30,0,2);}
+  else if(t<20){
+    const crashTime=20;const prog=Math.min((t-8)/12,1);
+    const c1target=-7,c2target=7;
+    if(t<20){
+      car1.position.x=THREE.MathUtils.lerp(-30,c1target,prog);
+      car2.position.x=THREE.MathUtils.lerp(30,c2target,prog);
+    }
+  } else {
+    // Crashed positions
+    car1.position.x=-6;car1.rotation.z=.08;
+    car2.position.x=6;car2.rotation.z=-.08;
+  }
+
+  // S3: Crash particles (20-28s)
+  particles.visible=t>=20&&t<28;
+  if(t>=20&&t<28){
+    const ct=t-20;
+    const pos=particleGeo.attributes.position.array;
+    for(let i=0;i<particleCount;i++){
+      const v=pVelocities[i];
+      const et=Math.max(0,ct-v.t);
+      pos[i*3]=v.vx*et-v.vx*et*et*.5;
+      pos[i*3+1]=Math.max(0,v.vy*et-2.5*et*et);
+      pos[i*3+2]=v.vz*et;
+    }
+    particleGeo.attributes.position.needsUpdate=true;
+    particleMat.opacity=Math.max(0,1-ct/5);
+  }
+
+  // Police lights flashing (t>100)
+  if(t>100){
+    const fl=Math.floor(t*4)%2;
+    policeLight1.intensity=fl===0?2:0;
+    policeLight2.intensity=fl===1?2:0;
+    policeLight1.position.copy(policeCar.position).add(new THREE.Vector3(0,3,0));
+    policeLight2.position.copy(policeCar.position).add(new THREE.Vector3(0,3,0));
+    // Police car arrives
+    const pc=Math.min((t-100)/8,1);
+    policeCar.position.x=THREE.MathUtils.lerp(60,16,pc);
+    policeCar.visible=true;
+    // Police lights materials flash
+    policeCar.children.forEach(ch=>{
+      if(ch.material&&ch.material.color){
+        const isRed=ch.material.color.r>.5&&ch.material.color.b<.3;
+        const isBlue=ch.material.color.b>.5&&ch.material.color.r<.3;
+        if(isRed)ch.material.emissive.setHex(fl===0?0xff0000:0x000000);
+        if(isBlue)ch.material.emissive.setHex(fl===1?0x0000ff:0x000000);
+      }
+    });
+  }
+
+  // Panels
+  blurryPanel.mesh.visible=t>=35&&t<52;
+  procPanel.mesh.visible=t>=52&&t<86;
+  clearPanel.mesh.visible=t>=86&&t<112;
+
+  // Animate panels (float)
+  [logoPanel,blurryPanel,procPanel,clearPanel].forEach(p=>{
+    if(p.mesh.visible)p.mesh.position.y=6+Math.sin(t*.8)*.2;
+  });
+
+  // Fog density change by scene
+  if(t<8)scene.fog.far=250;
+  else if(t<20)scene.fog.far=180;
+  else if(t<44)scene.fog.far=120;
+  else scene.fog.far=200;
+}
+
+// ── 2D OVERLAY DRAWING ────────────────────────────────────────────
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const easeOut=t=>1-(1-clamp(t,0,1))**2;
+const lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
+const floatY=(t,a=6,f=1.2)=>Math.sin(t*f*Math.PI*2)*a;
+
+function rrect2(c,x,y,w,h,r){
+  c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath();
+}
+
+function drawOverlay(t){
+  o2.clearRect(0,0,W,H);
+
+  // Scene subtitles & labels
+  const sceneData=[
+    {start:0,  end:8,   title:'CloudInvoke — The Number Plate Detective',sub:'3D Animated Explainer',color:'#2563eb'},
+    {start:8,  end:14,  title:'Act 1 — Normal Traffic',sub:'A typical night at a busy intersection',color:'#4b5563'},
+    {start:14, end:20,  title:'Act 1 — Vehicles Approaching',sub:'Two cars on collision course...',color:'#f59e0b'},
+    {start:20, end:28,  title:'💥 CRASH! — Accident Occurred',sub:'A car accident happens. The suspect flees.',color:'#ef4444'},
+    {start:28, end:35,  title:'Act 1 — No CCTV Available',sub:'The area has no security cameras.',color:'#6b7280'},
+    {start:35, end:44,  title:'📷 A Witness Captures Evidence',sub:'A passerby photographs the number plate — but it\'s blurry!',color:'#7c3aed'},
+    {start:44, end:52,  title:'🚨 Police Cannot Identify Vehicle',sub:'The image is too blurry. Investigation stuck.',color:'#dc2626'},
+    {start:52, end:70,  title:'☁ CloudInvoke — AI System Activated',sub:'The officer uploads the blurry image to CloudInvoke.',color:'#2563eb'},
+    {start:70, end:86,  title:'🤖 AI Enhancement Processing',sub:'Text detection → Enhancement → OCR extraction',color:'#7c3aed'},
+    {start:86, end:100, title:'✅ Crystal Clear! Number Plate Extracted',sub:'KA 09 AB 5562 — Saved to .txt file | 98.4% confidence',color:'#22c55e'},
+    {start:100,end:112, title:'🚔 Police Dispatch — Vehicle Located!',sub:'Armed with the plate number, police track down the suspect.',color:'#22c55e'},
+    {start:112,end:120, title:'Justice Served — CloudInvoke',sub:'Building Safer Communities with AI',color:'#2563eb'},
+  ];
+
+  sceneData.forEach(s=>{
+    if(t<s.start||t>=s.end)return;
+    const a=easeOut(clamp((t-s.start)/.8,0,1));
+    o2.save();o2.globalAlpha=a;
+    // Title bar
+    o2.fillStyle='rgba(5,8,16,0.85)';rrect2(o2,16,H-88,W-32,72,10);o2.fill();
+    o2.strokeStyle=s.color;o2.lineWidth=2;rrect2(o2,16,H-88,W-32,72,10);o2.stroke();
+    o2.fillStyle=s.color;o2.font="bold 18px 'Poppins',Arial";o2.textAlign='left';o2.textBaseline='middle';
+    o2.fillText(s.title,30,H-62);
+    o2.fillStyle='rgba(255,255,255,0.65)';o2.font="14px Arial";
+    o2.fillText(s.sub,30,H-38);
+    // Logo badge
+    o2.fillStyle='rgba(37,99,235,0.25)';rrect2(o2,W-180,H-88,164,72,10);o2.fill();
+    o2.strokeStyle='#2563eb';o2.lineWidth=1.5;rrect2(o2,W-180,H-88,164,72,10);o2.stroke();
+    o2.fillStyle='#93c5fd';o2.font="bold 13px Arial";o2.textAlign='center';o2.textBaseline='middle';
+    o2.fillText('☁ CloudInvoke',W-98,H-62);o2.fillStyle='#6b7280';o2.font='11px Arial';o2.fillText('3D Animation',W-98,H-42);
+    o2.restore();
+  });
+
+  // Crash flash effect
+  if(t>=20&&t<20.3){
+    const fa=(1-(t-20)/.3)*.85;
+    o2.save();o2.globalAlpha=fa;o2.fillStyle='white';o2.fillRect(0,0,W,H);o2.restore();
+  }
+
+  // "CRASH!" big text
+  if(t>=20&&t<22.5){
+    const ca=Math.max(0,1-(t-20)/2);
+    const sc=1+(t-20)*.3;
+    o2.save();o2.globalAlpha=ca;o2.translate(W/2,H/3);o2.scale(sc,sc);
+    o2.font="900 72px 'Poppins',Arial";o2.textAlign='center';o2.textBaseline='middle';
+    o2.strokeStyle='rgba(0,0,0,0.8)';o2.lineWidth=6;o2.strokeText('CRASH!',0,0);
+    o2.fillStyle='#ff9900';o2.fillText('CRASH!',0,0);o2.restore();
+  }
+
+  // Time indicator
+  o2.save();o2.fillStyle='rgba(5,8,16,0.7)';rrect2(o2,16,12,120,32,8);o2.fill();
+  o2.fillStyle='#4b5563';o2.font='12px Arial';o2.textAlign='left';o2.textBaseline='middle';
+  const mm=Math.floor(t/60),ss=Math.floor(t%60);
+  o2.fillText(`⏱ ${mm}:${ss.toString().padStart(2,'0')} / 2:00`,26,28);o2.restore();
+
+  // Processing progress (during s7)
+  if(t>=52&&t<86){
+    const pt=clamp((t-52)/34,0,1);
+    o2.save();o2.fillStyle='rgba(5,8,16,0.8)';rrect2(o2,16,12,300,32,8);o2.fill();
+    o2.strokeStyle='#1e3a8a';o2.lineWidth=1;rrect2(o2,16,12,300,32,8);o2.stroke();
+    o2.fillStyle='#2563eb';rrect2(o2,18,14,296*pt,28,6);o2.fill();
+    o2.fillStyle='white';o2.font='bold 12px Arial';o2.textAlign='center';o2.textBaseline='middle';
+    o2.fillText(`Processing: ${Math.round(pt*100)}%`,168,28);o2.restore();
+  }
+
+  // Number plate badge (35-52s)
+  if(t>=35&&t<52){
+    const ba=easeOut(clamp((t-35)/1.5,0,1));
+    o2.save();o2.globalAlpha=ba;
+    o2.fillStyle='rgba(239,68,68,0.2)';rrect2(o2,W/2-200,18,400,40,8);o2.fill();
+    o2.strokeStyle='#ef4444';o2.lineWidth=2;rrect2(o2,W/2-200,18,400,40,8);o2.stroke();
+    o2.fillStyle='#ef4444';o2.font="bold 15px Arial";o2.textAlign='center';o2.textBaseline='middle';
+    o2.fillText('⚠  Blurry Image — Number Plate Unidentifiable',W/2,38);o2.restore();
+  }
+
+  // Success badge (86-105s)
+  if(t>=86&&t<110){
+    const sa=easeOut(clamp((t-86)/1.5,0,1));
+    o2.save();o2.globalAlpha=sa;
+    o2.fillStyle='rgba(22,197,94,0.2)';rrect2(o2,W/2-250,18,500,40,8);o2.fill();
+    o2.strokeStyle='#22c55e';o2.lineWidth=2;rrect2(o2,W/2-250,18,500,40,8);o2.stroke();
+    o2.fillStyle='#4ade80';o2.font="bold 16px Arial";o2.textAlign='center';o2.textBaseline='middle';
+    o2.fillText('✅  KA 09 AB 5562 — Extracted with 98.4% confidence',W/2,38);o2.restore();
+  }
+
+  // Conclusion overlay (112-120s)
+  if(t>=112){
+    const fa=easeOut(clamp((t-112)/3,0,1));
+    o2.save();o2.globalAlpha=fa*.7;o2.fillStyle='#050810';o2.fillRect(0,0,W,H);o2.restore();
+    o2.save();o2.globalAlpha=easeOut(clamp((t-113)/2,0,1));
+    o2.font="900 42px 'Poppins',Arial";o2.textAlign='center';o2.textBaseline='middle';
+    o2.strokeStyle='rgba(0,0,50,0.9)';o2.lineWidth=5;o2.strokeText('CloudInvoke',W/2,H/2-60);
+    o2.fillStyle='#2563eb';o2.fillText('CloudInvoke',W/2,H/2-60);
+    o2.font="22px Arial";o2.fillStyle='#93c5fd';o2.fillText('AI-Powered Image Enhancement',W/2,H/2-15);
+    o2.font="16px Arial";o2.fillStyle='rgba(255,255,255,0.6)';
+    o2.fillText('Building Safer Communities with AI',W/2,H/2+20);
+    o2.fillText('The Number Plate Detective — Case Closed ✅',W/2,H/2+50);
+    // Stats
+    const stats=[['Blurry → Clear','✓'],['Number Plate Extracted','KA 09 AB 5562'],['Confidence','98.4%'],['Case Status','SOLVED ✅']];
+    stats.forEach((s,i)=>{
+      const sx=W/2-300+i*155;
+      o2.fillStyle='rgba(37,99,235,0.2)';rrect2(o2,sx,H/2+80,140,52,8);o2.fill();
+      o2.strokeStyle='#1e3a8a';o2.lineWidth=1.5;rrect2(o2,sx,H/2+80,140,52,8);o2.stroke();
+      o2.fillStyle='#93c5fd';o2.font='11px Arial';o2.textAlign='center';o2.textBaseline='middle';
+      o2.fillText(s[0],sx+70,H/2+94);
+      o2.fillStyle='white';o2.font='bold 13px Arial';o2.fillText(s[1],sx+70,H/2+114);
+    });
+    o2.restore();
+  }
+}
+
+// ── GLOBAL TIME CONTROL (for Puppeteer) ──────────────────────────
+let globalTime=0;
+window.setTime=function(t){
+  globalTime=t;
+  updateScene(t);
+  renderer.render(scene,camera);
+  drawOverlay(t);
+};
+window.render=window.setTime; // alias for capture script
+
+// ── INTERACTIVE CONTROLS ──────────────────────────────────────────
+let playing=false,lastTs=null,raf=null;
+const TOTAL_DUR=TOTAL;
+
+// Auto-play loop for browser viewing
+function animate(ts){
+  if(lastTs!==null&&playing){
+    const dt=Math.min((ts-lastTs)/1000,.1);
+    globalTime=Math.min(globalTime+dt,TOTAL_DUR);
+  }
+  lastTs=ts;
+  updateScene(globalTime);
+  renderer.render(scene,camera);
+  drawOverlay(globalTime);
+  if(globalTime<TOTAL_DUR)raf=requestAnimationFrame(animate);
+  else{playing=false;}
+}
+// Start on click
+document.addEventListener('click',()=>{
+  if(!playing){playing=true;raf=requestAnimationFrame(animate);}
+});
+// Initial render
+updateScene(0);renderer.render(scene,camera);drawOverlay(0);
+</script>
+</body>
+</html>

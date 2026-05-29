@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CloudInvoke — Number Plate Detective</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#050810;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Poppins',Arial,sans-serif;padding:24px}
+#ptitle{color:#444;font-size:12px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px}
+#wrap{position:relative;width:960px;filter:drop-shadow(0 30px 80px rgba(0,0,0,.8))}
+#cw{position:relative;width:960px;height:540px;border-radius:14px 14px 0 0;overflow:hidden}
+canvas{display:block;width:960px;height:540px}
+#sov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);transition:opacity .4s;z-index:10}
+#sov.hidden{opacity:0;pointer-events:none}
+#sbtn{background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;color:white;font-family:inherit;font-size:18px;font-weight:700;padding:16px 48px;border-radius:50px;cursor:pointer;box-shadow:0 8px 32px rgba(37,99,235,.5);transition:transform .2s}
+#sbtn:hover{transform:scale(1.06)}
+#sl{color:rgba(255,255,255,.5);font-size:13px;margin-top:12px}
+#ctrl{background:#0d0f1a;border-radius:0 0 14px 14px;padding:12px 20px;display:flex;align-items:center;gap:14px;width:960px;border-top:1px solid #1a2040}
+#pb{background:none;border:2px solid #2563eb;color:#2563eb;width:34px;height:34px;border-radius:50%;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+#pb:hover{background:#2563eb;color:#fff}
+#rb{background:none;border:1px solid #333;color:#666;width:28px;height:28px;border-radius:50%;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+#rb:hover{border-color:#2563eb;color:#2563eb}
+#tlw{flex:1;display:flex;flex-direction:column;gap:4px}
+#tl{width:100%;height:5px;background:#1a2040;border-radius:3px;cursor:pointer;overflow:hidden}
+#pf{height:100%;background:linear-gradient(90deg,#2563eb,#7c3aed);border-radius:3px;width:0%;transition:width .08s linear}
+#scl{font-size:10px;color:#444;letter-spacing:.05em}
+#td{color:#555;font-size:12px;white-space:nowrap;flex-shrink:0}
+</style>
+</head>
+<body>
+<p id="ptitle">CloudInvoke — Number Plate Detective · 2D Animation</p>
+<div id="wrap">
+  <div id="cw">
+    <canvas id="canvas" width="960" height="540"></canvas>
+    <div id="sov">
+      <button id="sbtn">▶ &nbsp; Play Animation</button>
+      <p id="sl">2-minute explainer · CloudInvoke AI Enhancement System</p>
+    </div>
+  </div>
+  <div id="ctrl">
+    <button id="pb">▶</button>
+    <div id="tlw">
+      <div id="tl"><div id="pf"></div></div>
+      <div id="scl">Scene 1 — Title</div>
+    </div>
+    <span id="td">0:00 / 2:00</span>
+    <button id="rb">↺</button>
+  </div>
+</div>
+<script>
+"use strict";
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d');
+const W=960,H=540,TOTAL=120;
+
+// ── PALETTE ──────────────────────────────────────────────────────
+const C={
+  nightSky:'#070c18',road:'#1a2030',roadLine:'rgba(255,255,255,0.25)',
+  building:'#0e1525',buildingLit:'#1e3060',
+  carBlue:'#2563eb',carRed:'#dc2626',carGray:'#4b5563',
+  police:'#1d4ed8',policeLight1:'#ef4444',policeLight2:'#3b82f6',
+  skin:'#f4a776',hairW:'#8b5e3c',hairP:'#1a1a2e',
+  shirtW:'#64748b',shirtP:'#1e3a8a',pants:'#1f2937',shoe:'#111',
+  brand:'#2563eb',brandPurple:'#7c3aed',brandGlow:'rgba(37,99,235,0.35)',
+  spark1:'#ff9900',spark2:'#ffcc00',spark3:'#ff4400',
+  plateYellow:'#fbbf24',plateWhite:'#f0f0f0',plateBorder:'#1a1a1a',
+  white:'#ffffff',black:'#0d0d0d',gray:'#9ca3af',
+  green:'#22c55e',red:'#ef4444',gold:'#f59e0b',
+  ui:'#0a1628',uiBorder:'#1e3a8a',uiGlow:'rgba(37,99,235,0.2)',
+};
+
+// ── MATH ─────────────────────────────────────────────────────────
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const lerp=(a,b,t)=>a+(b-a)*clamp(t,0,1);
+const easeOut=t=>1-(1-clamp(t,0,1))**2;
+const ease=t=>t<.5?2*t*t:-1+(4-2*t)*t;
+const bounce=t=>{t=clamp(t,0,1);if(t<.36)return(t/.36)**2;if(t<.73)return.75+.1875*(1-((t-.545)/.182)**2);return.9375+.0625*(1-((t-.909)/.0909)**2);};
+const floatY=(t,a=6,f=1.2)=>Math.sin(t*f*Math.PI*2)*a;
+const slide=(t,d,fr,to)=>lerp(fr,to,easeOut(clamp(t/d,0,1)));
+
+// ── DRAW HELPERS ─────────────────────────────────────────────────
+function rrect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+function txt(t,x,y,sz,col,al='center',wt='700'){
+  ctx.save();ctx.fillStyle=col;ctx.font=`${wt} ${sz}px 'Poppins',Arial`;
+  ctx.textAlign=al;ctx.textBaseline='middle';ctx.fillText(t,x,y);ctx.restore();
+}
+function strokeTxt(t,x,y,sz,fill,stroke,al='center'){
+  ctx.save();ctx.font=`900 ${sz}px 'Poppins',Arial`;ctx.textAlign=al;ctx.textBaseline='middle';
+  ctx.strokeStyle=stroke;ctx.lineWidth=5;ctx.strokeText(t,x,y);
+  ctx.fillStyle=fill;ctx.fillText(t,x,y);ctx.restore();
+}
+function badge(x,y,w,h,text,bg,fg,sz=15){
+  ctx.fillStyle=bg;rrect(ctx,x,y,w,h,h/2);ctx.fill();
+  ctx.fillStyle=fg;ctx.font=`700 ${sz}px 'Poppins',Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(text,x+w/2,y+h/2);
+}
+function glow(cx,cy,r,col,a=.4){
+  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+  g.addColorStop(0,col.replace('rgb','rgba').replace(')',`,${a})`)||`rgba(37,99,235,${a})`);
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
+}
+function arrow(x1,y1,x2,y2,col='#333',lw=3,hs=12){
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=lw;ctx.lineCap='round';
+  const a=Math.atan2(y2-y1,x2-x1),len=Math.hypot(x2-x1,y2-y1);
+  ctx.translate(x1,y1);ctx.rotate(a);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(len-hs,0);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(len,0);ctx.lineTo(len-hs,-hs*.6);ctx.lineTo(len-hs,hs*.6);ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+function speechBubble(x,y,w,h,lines,tailDir='right',bg='white',fg='#111',sz=16){
+  ctx.save();ctx.fillStyle=bg;ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=2;
+  rrect(ctx,x,y,w,h,12);ctx.fill();ctx.stroke();
+  const ty=y+h*.65;
+  if(tailDir==='left'){ctx.beginPath();ctx.moveTo(x+20,ty);ctx.lineTo(x-16,ty+14);ctx.lineTo(x+8,ty+2);ctx.fillStyle=bg;ctx.fill();}
+  else{ctx.beginPath();ctx.moveTo(x+w-20,ty);ctx.lineTo(x+w+16,ty+14);ctx.lineTo(x+w-8,ty+2);ctx.fillStyle=bg;ctx.fill();}
+  const lh=sz*1.4,sy=y+h/2-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>{ctx.fillStyle=fg;ctx.font=`600 ${sz}px 'Poppins',Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(l,x+w/2,sy+i*lh);});
+  ctx.restore();
+}
+
+// ── NIGHT BACKGROUND ─────────────────────────────────────────────
+function drawNightBG(variant='city'){
+  // Sky gradient
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#040810');g.addColorStop(1,'#0d1525');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // Stars
+  ctx.save();ctx.globalAlpha=.6;
+  for(let i=0;i<80;i++){
+    const sx=(i*167+13)%W,sy=(i*89+7)%(H*.5),sr=.4+Math.random()*.6;
+    ctx.fillStyle='white';ctx.beginPath();ctx.arc(sx,sy,sr,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+  // Buildings (silhouettes)
+  const bldgs=[{x:0,w:80,h:220},{x:90,w:60,h:160},{x:160,w:90,h:280},{x:260,w:50,h:190},
+    {x:820,w:90,h:260},{x:860,w:60,h:180},{x:890,w:80,h:320},{x:930,w:30,h:150}];
+  bldgs.forEach(b=>{
+    ctx.fillStyle=C.building;ctx.fillRect(b.x,H-b.h-80,b.w,b.h);
+    // Windows
+    ctx.fillStyle='rgba(255,220,100,0.12)';
+    for(let r=0;r<Math.floor(b.h/22);r++)for(let c=0;c<Math.floor(b.w/16);c++){
+      if(Math.sin(b.x+r*7+c*13)>.3)ctx.fillRect(b.x+c*16+3,H-b.h-78+r*22+3,9,13);
+    }
+  });
+}
+
+// ── ROAD ─────────────────────────────────────────────────────────
+function drawRoad(y,w,h){
+  ctx.fillStyle=C.road;ctx.fillRect(0,y,W,h);
+  // Lane lines
+  ctx.fillStyle=C.roadLine;
+  for(let x=0;x<W;x+=60)ctx.fillRect(x,y+h/2-3,35,6);
+  // Sidewalk edges
+  ctx.fillStyle='#252d40';ctx.fillRect(0,y,W,5);ctx.fillRect(0,y+h-5,W,5);
+}
+
+// ── CAR ──────────────────────────────────────────────────────────
+function drawCar(cx,cy,scale,color,dir='right',damaged=false){
+  ctx.save();ctx.translate(cx,cy);if(dir==='left')ctx.scale(-1,1);ctx.scale(scale,scale);
+  const bw=135,bh=55,dmg=damaged?.85:1;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(0,bh/2+10,65,12,0,0,Math.PI*2);ctx.fill();
+  // Wheels
+  [[-45,bh/2+8],[45,bh/2+8]].forEach(([wx,wy])=>{
+    ctx.fillStyle='#111';ctx.beginPath();ctx.arc(wx,wy,18,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#3d4454';ctx.beginPath();ctx.arc(wx,wy,10,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#666';ctx.beginPath();ctx.arc(wx,wy,4,0,Math.PI*2);ctx.fill();
+  });
+  // Body
+  ctx.fillStyle=color;
+  ctx.save();if(damaged)ctx.transform(1,0,.05,dmg,0,0);
+  rrect(ctx,-bw/2,-bh/2,bw,bh,14);ctx.fill();ctx.restore();
+  // Cabin
+  ctx.fillStyle=color;
+  ctx.save();if(damaged)ctx.transform(1,0,.05,dmg,0,0);
+  rrect(ctx,-bw*.28,-bh/2-30,bw*.56,32,10);ctx.fill();ctx.restore();
+  // Windows
+  ctx.fillStyle='rgba(120,200,255,0.55)';
+  rrect(ctx,-bw*.25,-bh/2-27,bw*.23,26,5);ctx.fill();
+  rrect(ctx,4,-bh/2-27,bw*.22,26,5);ctx.fill();
+  // Headlights (glow)
+  ctx.fillStyle='#ffffaa';ctx.beginPath();ctx.ellipse(bw/2-5,-7,9,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ffffaa';ctx.beginPath();ctx.ellipse(bw/2-5,9,9,5,0,0,Math.PI*2);ctx.fill();
+  ctx.save();ctx.shadowColor='#ffff99';ctx.shadowBlur=18;ctx.fillStyle='rgba(255,255,180,.3)';
+  ctx.beginPath();ctx.arc(bw/2+5,0,24,0,Math.PI*2);ctx.fill();ctx.restore();
+  // Taillights
+  ctx.fillStyle='#ff3333';ctx.beginPath();ctx.ellipse(-bw/2+5,-7,8,5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(-bw/2+5,9,8,5,0,0,Math.PI*2);ctx.fill();
+  // Number plate
+  ctx.fillStyle=C.plateWhite;rrect(ctx,-20,bh/2-16,40,12,2);ctx.fill();
+  ctx.fillStyle='#333';ctx.font=`bold 7px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('KA 09',0,bh/2-10);
+  ctx.restore();
+}
+
+// ── POLICE CAR ───────────────────────────────────────────────────
+function drawPoliceCar(cx,cy,scale,t,dir='right'){
+  ctx.save();ctx.translate(cx,cy);if(dir==='left')ctx.scale(-1,1);ctx.scale(scale,scale);
+  const bw=140,bh=55;
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(0,bh/2+10,68,12,0,0,Math.PI*2);ctx.fill();
+  [[-46,bh/2+8],[46,bh/2+8]].forEach(([wx,wy])=>{
+    ctx.fillStyle='#111';ctx.beginPath();ctx.arc(wx,wy,18,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#333';ctx.beginPath();ctx.arc(wx,wy,10,0,Math.PI*2);ctx.fill();
+  });
+  ctx.fillStyle='#1d4ed8';rrect(ctx,-bw/2,-bh/2,bw,bh,14);ctx.fill();
+  ctx.fillStyle='#1d4ed8';rrect(ctx,-bw*.28,-bh/2-30,bw*.56,32,10);ctx.fill();
+  ctx.fillStyle='rgba(120,200,255,0.55)';
+  rrect(ctx,-bw*.25,-bh/2-27,bw*.23,26,5);ctx.fill();
+  rrect(ctx,4,-bh/2-27,bw*.22,26,5);ctx.fill();
+  // Police stripe
+  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(-bw/2,-6,bw,12);
+  // POLICE text
+  ctx.fillStyle='white';ctx.font=`bold 10px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('POLICE',0,0);
+  // Light bar
+  ctx.fillStyle='#111';rrect(ctx,-30,-bh/2-35,60,10,5);ctx.fill();
+  const flash=Math.floor(t*4)%2;
+  ctx.fillStyle=flash===0?'#ef4444':'#333';rrect(ctx,-28,-bh/2-33,24,6,3);ctx.fill();
+  ctx.fillStyle=flash===1?'#3b82f6':'#333';rrect(ctx,4,-bh/2-33,24,6,3);ctx.fill();
+  // Glow from lights
+  ctx.save();ctx.globalAlpha=.35;
+  ctx.shadowColor=flash===0?'#ef4444':'#3b82f6';ctx.shadowBlur=25;
+  ctx.fillStyle=flash===0?'rgba(239,68,68,.5)':'rgba(59,130,246,.5)';
+  ctx.beginPath();ctx.arc(0,-bh/2-50,30,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Headlights
+  ctx.fillStyle='#ffffaa';ctx.beginPath();ctx.ellipse(bw/2-5,-7,9,5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(bw/2-5,9,9,5,0,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+// ── CRASH EFFECT ─────────────────────────────────────────────────
+function drawCrash(cx,cy,t,intensity=1){
+  if(t<=0)return;
+  const pts=24,maxR=120*intensity;
+  // Flash
+  if(t<0.15){
+    ctx.save();ctx.globalAlpha=(1-t/.15)*.7;
+    ctx.fillStyle='white';ctx.fillRect(0,0,W,H);ctx.restore();
+  }
+  // Sparks
+  ctx.save();
+  for(let i=0;i<pts;i++){
+    const angle=(i/pts)*Math.PI*2,speed=30+Math.sin(i*3)*20,
+      px=cx+Math.cos(angle)*speed*t*4,py=cy+Math.sin(angle)*speed*t*4;
+    const a=Math.max(0,1-t/0.8);
+    ctx.globalAlpha=a;
+    ctx.fillStyle=i%3===0?C.spark1:(i%3===1?C.spark2:C.spark3);
+    ctx.beginPath();ctx.arc(px,py,3+Math.sin(i)*2,0,Math.PI*2);ctx.fill();
+    // Trails
+    ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(px,py);ctx.stroke();
+  }
+  // Impact ring
+  if(t<0.4){
+    const r=t*maxR,a=1-t/.4;
+    ctx.globalAlpha=a*.5;ctx.strokeStyle='rgba(255,200,50,0.8)';ctx.lineWidth=3;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── CCTV CAMERA ──────────────────────────────────────────────────
+function drawCCTV(cx,cy,size,crossed=false){
+  ctx.save();ctx.translate(cx,cy);const s=size/2;
+  // Pole
+  ctx.fillStyle='#555';ctx.fillRect(-3,0,6,s*1.2);
+  // Camera body
+  ctx.fillStyle='#2d3748';
+  ctx.save();ctx.translate(0,-s*.4);ctx.rotate(-.3);
+  rrect(ctx,-s*.7,-s*.3,s*1.4,s*.6,s*.15);ctx.fill();
+  // Lens
+  ctx.fillStyle='#111';ctx.beginPath();ctx.arc(s*.45,0,s*.22,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(100,200,255,0.4)';ctx.beginPath();ctx.arc(s*.45,0,s*.14,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  if(crossed){
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=s*.2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-s*.8,-s*.8);ctx.lineTo(s*.8,s*.8);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(s*.8,-s*.8);ctx.lineTo(-s*.8,s*.8);ctx.stroke();
+    // Red circle
+    ctx.strokeStyle='#ef4444';ctx.lineWidth=s*.1;
+    ctx.beginPath();ctx.arc(0,0,s*.9,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── PHONE ────────────────────────────────────────────────────────
+function drawPhone(cx,cy,scale,blur=0,showPlate=false,plateText='KA 09 AB 5562'){
+  ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);
+  // Phone body
+  ctx.fillStyle='#111827';rrect(ctx,-45,-80,90,160,16);ctx.fill();
+  ctx.fillStyle='#1f2937';rrect(ctx,-40,-75,80,150,12);ctx.fill();
+  ctx.fillStyle='#0a0e1a';rrect(ctx,-36,-72,72,142,10);ctx.fill();
+  // Screen content
+  if(showPlate){
+    // Number plate on screen
+    const px=-32,py=-60,pw=64,ph=42;
+    if(blur>0){
+      ctx.save();ctx.filter=`blur(${blur}px)`;
+      ctx.fillStyle=C.plateYellow;rrect(ctx,px,py,pw,ph,4);ctx.fill();
+      ctx.fillStyle=C.plateBorder;ctx.strokeStyle=C.plateBorder;ctx.lineWidth=2;
+      rrect(ctx,px,py,pw,ph,4);ctx.stroke();
+      ctx.fillStyle='#111';ctx.font=`bold ${blur>2?10:8}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(plateText.split(' ').slice(0,2).join(' '),px+pw/2,py+ph/2-5);
+      ctx.fillText(plateText.split(' ').slice(2).join(' '),px+pw/2,py+ph/2+7);
+      ctx.filter='none';ctx.restore();
+    } else {
+      ctx.fillStyle=C.plateYellow;rrect(ctx,px,py,pw,ph,4);ctx.fill();
+      ctx.strokeStyle=C.plateBorder;ctx.lineWidth=2;rrect(ctx,px,py,pw,ph,4);ctx.stroke();
+      ctx.fillStyle='#111';ctx.font=`bold 9px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(plateText.split(' ').slice(0,2).join(' '),px+pw/2,py+ph/2-5);
+      ctx.fillText(plateText.split(' ').slice(2).join(' '),px+pw/2,py+ph/2+7);
+    }
+    // Rest of scene
+    ctx.fillStyle='rgba(30,50,90,0.8)';ctx.fillRect(-32,py+ph,-32,ph/2);
+    if(blur>0)txt('BLURRY',0,py+ph+10,8,'#ef4444','center','700');
+    else txt('CLEAR',0,py+ph+10,8,'#22c55e','center','700');
+  } else {
+    ctx.fillStyle='#1e3a5f';rrect(ctx,-32,-68,64,126,8);ctx.fill();
+    ctx.fillStyle=C.brand;ctx.font=`bold 8px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('CloudInvoke',0,-20);
+  }
+  // Home button / indicator
+  ctx.fillStyle='#374151';ctx.beginPath();ctx.arc(0,68,7,0,Math.PI*2);ctx.fill();
+  // Camera notch
+  ctx.fillStyle='#111827';rrect(ctx,-12,-79,24,7,3);ctx.fill();
+  ctx.restore();
+}
+
+// ── NUMBER PLATE (standalone) ────────────────────────────────────
+function drawNumberPlate(cx,cy,w,h,text,blur=0,enhance=0){
+  ctx.save();ctx.translate(cx,cy);
+  if(blur>0)ctx.filter=`blur(${blur}px)`;
+  // Plate bg
+  ctx.fillStyle=C.plateYellow;rrect(ctx,-w/2,-h/2,w,h,6);ctx.fill();
+  ctx.strokeStyle=C.plateBorder;ctx.lineWidth=3;rrect(ctx,-w/2,-h/2,w,h,6);ctx.stroke();
+  // India plate header
+  ctx.fillStyle='rgba(0,0,150,0.85)';rrect(ctx,-w/2+3,-h/2+3,w-6,h*.28,3);ctx.fill();
+  ctx.fillStyle='white';ctx.font=`bold ${h*.2}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('INDIA',0,-h/2+h*.17);
+  // Main text
+  ctx.fillStyle='#111';ctx.font=`900 ${h*.35}px 'Courier New',monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(text,0,h*.1);
+  if(blur>0)ctx.filter='none';
+  // Enhancement glow
+  if(enhance>0){
+    ctx.save();ctx.globalAlpha=enhance*.6;
+    ctx.shadowColor='#22c55e';ctx.shadowBlur=30*enhance;ctx.strokeStyle='#22c55e';ctx.lineWidth=3;
+    rrect(ctx,-w/2,-h/2,w,h,6);ctx.stroke();ctx.restore();
+  }
+  ctx.restore();
+}
+
+// ── TXT FILE ─────────────────────────────────────────────────────
+function drawTxtFile(cx,cy,scale,content,a=1){
+  ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);ctx.globalAlpha=a;
+  const w=120,h=140;
+  // File body
+  ctx.fillStyle='#f0f9ff';ctx.strokeStyle='#93c5fd';ctx.lineWidth=2;
+  rrect(ctx,-w/2,-h/2,w,h,6);ctx.fill();ctx.stroke();
+  // Dog-ear
+  ctx.fillStyle='#bfdbfe';ctx.beginPath();ctx.moveTo(w/2-20,-h/2);ctx.lineTo(w/2,-h/2+20);ctx.lineTo(w/2,-h/2);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#93c5fd';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(w/2-20,-h/2);ctx.lineTo(w/2-20,-h/2+20);ctx.lineTo(w/2,-h/2+20);ctx.stroke();
+  // .txt label
+  ctx.fillStyle=C.brand;ctx.font=`bold 14px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('.TXT',0,-h/2+14);
+  ctx.fillStyle='#6b7280';ctx.font=`9px monospace`;ctx.textAlign='left';
+  content.forEach((line,i)=>{
+    ctx.fillStyle=i===0?'#1d4ed8':'#374151';
+    ctx.fillText(line,-w/2+8,-h/2+35+i*14);
+  });
+  ctx.restore();
+}
+
+// ── CLOUDINVOKE LOGO ─────────────────────────────────────────────
+function drawCloudInvokeLogo(cx,cy,scale,t=0){
+  ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);
+  const pulse=.5+.5*Math.sin(t*2.5);
+  // Glow
+  ctx.save();ctx.globalAlpha=.3+.15*pulse;
+  const g=ctx.createRadialGradient(0,0,0,0,0,90);
+  g.addColorStop(0,'rgba(37,99,235,0.8)');g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,90,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Cloud shape
+  ctx.fillStyle='#1e3a8a';
+  ctx.beginPath();ctx.arc(-22,-5,28,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(22,-5,28,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-18,35,0,Math.PI*2);ctx.fill();
+  ctx.fillRect(-50,2,100,32);
+  ctx.fillStyle=C.brand;
+  ctx.beginPath();ctx.arc(-22,-5,24,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(22,-5,24,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(0,-18,30,0,Math.PI*2);ctx.fill();
+  ctx.fillRect(-46,0,92,34);
+  // Lightning bolt
+  ctx.fillStyle='#fbbf24';
+  ctx.beginPath();ctx.moveTo(8,-30);ctx.lineTo(-8,5);ctx.lineTo(2,5);ctx.lineTo(-10,35);ctx.lineTo(12,0);ctx.lineTo(2,0);ctx.closePath();ctx.fill();
+  // Text
+  ctx.fillStyle='white';ctx.font=`900 26px 'Poppins',Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('CloudInvoke',0,70);
+  ctx.fillStyle='#93c5fd';ctx.font=`400 13px 'Poppins',Arial`;
+  ctx.fillText('AI-Powered Image Enhancement',0,92);
+  ctx.restore();
+}
+
+// ── WITNESS CHARACTER ────────────────────────────────────────────
+function drawWitness(cx,cy,scale,pose='neutral',flipH=false){
+  ctx.save();ctx.translate(cx,cy);if(flipH)ctx.scale(-1,1);ctx.scale(scale,scale);
+  const sk='#f4a776',hr='#8b5e3c',sh='#64748b',pt='#374151',shoe='#111';
+  ctx.fillStyle='rgba(0,0,0,.1)';ctx.beginPath();ctx.ellipse(0,148,42,9,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=shoe;ctx.beginPath();ctx.ellipse(-19,147,17,8,.1,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(19,147,17,8,-.1,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=pt;rrect(ctx,-32,80,26,72,12);ctx.fill();rrect(ctx,6,80,26,72,12);ctx.fill();
+  ctx.fillStyle=sh;rrect(ctx,-42,18,84,72,18);ctx.fill();
+  if(pose==='phone'){
+    // Left arm normal
+    ctx.fillStyle=sh;ctx.save();ctx.translate(-42,28);ctx.rotate(.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-45,88,12,12,0,0,Math.PI*2);ctx.fill();
+    // Right arm raised holding phone
+    ctx.fillStyle=sh;ctx.save();ctx.translate(42,28);ctx.rotate(-.9);rrect(ctx,-11,0,22,50,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(60,-10,12,12,0,0,Math.PI*2);ctx.fill();
+    // Mini phone in hand
+    ctx.fillStyle='#111';rrect(ctx,52,-22,18,28,4);ctx.fill();
+    ctx.fillStyle='#1e3a8a';rrect(ctx,54,-20,14,22,3);ctx.fill();
+  } else {
+    ctx.fillStyle=sh;ctx.save();ctx.translate(-42,28);ctx.rotate(.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-45,88,12,12,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=sh;ctx.save();ctx.translate(42,28);ctx.rotate(-.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(45,88,12,12,0,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle=sk;rrect(ctx,-14,5,28,20,8);ctx.fill();
+  ctx.fillStyle=sk;ctx.beginPath();ctx.arc(0,-22,36,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=hr;
+  ctx.beginPath();ctx.arc(0,-29,36,Math.PI,Math.PI*2);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.ellipse(0,-29,36,22,0,Math.PI,Math.PI*2);ctx.fill();
+  ctx.save();ctx.translate(-33,-28);ctx.rotate(.12);rrect(ctx,-7,0,14,60,7);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(33,-28);ctx.rotate(-.12);rrect(ctx,-6,0,14,60,7);ctx.fill();ctx.restore();
+  ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-37,-18,7,9,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(37,-18,7,9,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.ellipse(-13,-22,9,8,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(13,-22,9,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#4a3520';ctx.beginPath();ctx.arc(-13,-21,5.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(13,-21,5.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#111';ctx.beginPath();ctx.arc(-12,-20,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(14,-20,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(-11,-22,1.8,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(15,-22,1.8,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=hr;ctx.lineWidth=2.8;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-22,-33);ctx.lineTo(-5,-31);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(5,-31);ctx.lineTo(22,-33);ctx.stroke();
+  ctx.strokeStyle='#d4885f';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(-3,-13);ctx.quadraticCurveTo(5,-9,3,-13);ctx.stroke();
+  ctx.fillStyle='rgba(255,145,120,0.28)';ctx.beginPath();ctx.ellipse(-25,-10,9,5,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(25,-10,9,5,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#c96650';ctx.lineWidth=2.5;ctx.lineCap='round';
+  if(pose==='shocked'){ctx.beginPath();ctx.arc(0,-5,9,.1,Math.PI-.1);ctx.stroke();}
+  else{ctx.beginPath();ctx.arc(0,-5,11,.2,Math.PI-.2);ctx.stroke();}
+  ctx.restore();
+}
+
+// ── POLICE OFFICER ───────────────────────────────────────────────
+function drawPoliceOfficer(cx,cy,scale,pose='neutral',expr='neutral'){
+  ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);
+  const sk='#f4a776',hr='#1a1a2e',sh='#1e3a8a',pt='#1e3a8a',shoe='#111';
+  ctx.fillStyle='rgba(0,0,0,.1)';ctx.beginPath();ctx.ellipse(0,148,42,9,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=shoe;ctx.beginPath();ctx.ellipse(-20,147,18,8,.1,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(20,147,18,8,-.1,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=pt;rrect(ctx,-33,80,28,72,12);ctx.fill();rrect(ctx,5,80,28,72,12);ctx.fill();
+  ctx.fillStyle=sh;rrect(ctx,-46,15,92,72,18);ctx.fill();
+  // Badge
+  ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.arc(-20,35,12,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1e3a8a';ctx.font=`bold 6px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('POL',-20,35);
+  // Belt
+  ctx.fillStyle='#111';ctx.fillRect(-46,82,92,8);
+  if(pose==='holding'){
+    ctx.fillStyle=sh;ctx.save();ctx.translate(-46,28);ctx.rotate(.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-50,88,12,12,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=sh;ctx.save();ctx.translate(46,30);ctx.rotate(-.3);rrect(ctx,-11,0,22,48,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(62,55,12,12,0,0,Math.PI*2);ctx.fill();
+  } else {
+    ctx.fillStyle=sh;ctx.save();ctx.translate(-46,28);ctx.rotate(.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-50,88,12,12,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=sh;ctx.save();ctx.translate(46,28);ctx.rotate(-.08);rrect(ctx,-11,0,22,56,11);ctx.fill();ctx.restore();
+    ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(50,88,12,12,0,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle=sk;rrect(ctx,-15,5,30,18,8);ctx.fill();
+  ctx.fillStyle=sk;ctx.beginPath();ctx.arc(0,-22,37,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1e3a8a';rrect(ctx,-37,-12,74,30,6);ctx.fill(); // police cap brim
+  ctx.fillStyle='#1d4ed8';ctx.beginPath();ctx.arc(0,-32,36,Math.PI,Math.PI*2);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#1e3a8a';ctx.beginPath();ctx.ellipse(0,-32,36,22,0,Math.PI,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fbbf24';ctx.font=`bold 8px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('★',0,-36);
+  ctx.fillStyle=sk;ctx.beginPath();ctx.ellipse(-37,-18,7,9,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(37,-18,7,9,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.ellipse(-13,-22,9,8,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(13,-22,9,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#3b5a8a';ctx.beginPath();ctx.arc(-13,-21,5.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(13,-21,5.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#111';ctx.beginPath();ctx.arc(-12,-20,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(14,-20,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.arc(-11,-22,1.8,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(15,-22,1.8,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=hr;ctx.lineWidth=3;ctx.lineCap='round';
+  if(expr==='confused'){ctx.beginPath();ctx.moveTo(-22,-35);ctx.lineTo(-5,-32);ctx.stroke();ctx.beginPath();ctx.moveTo(5,-32);ctx.lineTo(22,-35);ctx.stroke();}
+  else if(expr==='happy'){ctx.beginPath();ctx.moveTo(-22,-36);ctx.quadraticCurveTo(-13,-40,-5,-36);ctx.stroke();ctx.beginPath();ctx.moveTo(5,-36);ctx.quadraticCurveTo(13,-40,22,-36);ctx.stroke();}
+  else{ctx.beginPath();ctx.moveTo(-22,-33);ctx.lineTo(-5,-31);ctx.stroke();ctx.beginPath();ctx.moveTo(5,-31);ctx.lineTo(22,-33);ctx.stroke();}
+  ctx.strokeStyle='#d4885f';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(-3,-13);ctx.quadraticCurveTo(5,-9,3,-13);ctx.stroke();
+  ctx.strokeStyle='#c96650';ctx.lineWidth=2.5;ctx.lineCap='round';
+  if(expr==='happy'){ctx.beginPath();ctx.arc(0,-7,13,.15,Math.PI-.15);ctx.stroke();}
+  else if(expr==='confused'){ctx.beginPath();ctx.arc(0,-2,10,Math.PI+.25,-.25);ctx.stroke();}
+  else{ctx.beginPath();ctx.arc(0,-5,11,.2,Math.PI-.2);ctx.stroke();}
+  ctx.restore();
+}
+
+// ── SCENES ───────────────────────────────────────────────────────
+const SCENES=[
+
+// ═══════════════════════════════════════════════════════════════
+// S1: TITLE (0–8s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s1',label:'Title',start:0,end:8,
+  draw(ctx,t,p){
+    drawNightBG();
+    // Top shimmer
+    const g=ctx.createLinearGradient(0,0,W,0);
+    g.addColorStop(0,'rgba(37,99,235,0)');g.addColorStop(.5,'rgba(37,99,235,0.1)');g.addColorStop(1,'rgba(37,99,235,0)');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,80);
+    const ta=easeOut(clamp(t/1.5,0,1));
+    ctx.save();ctx.globalAlpha=ta;
+    drawCloudInvokeLogo(W/2,H/2-40,1.1,t);
+    ctx.restore();
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=sa;
+      strokeTxt('THE NUMBER PLATE DETECTIVE',W/2,H/2+75,22,'white','rgba(0,0,50,0.8)');
+      txt('A car accident. No CCTV. One blurry photo. One solution.',W/2,H/2+108,15,C.gray,'center','400');
+      ctx.restore();
+    }
+    if(t>4){
+      const ba=easeOut(clamp((t-4)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ba;
+      badge(60,H-65,200,38,'🚗  Accident',C.carRed,'white',14);
+      badge(300,H-65,200,38,'📷  Blurry Photo','#4b5563','white',14);
+      badge(540,H-65,200,38,'🤖  AI Enhance',C.brandPurple,'white',14);
+      badge(780,H-65,160,38,'✅  Case Solved',C.green,'white',14);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S2: THE ACCIDENT (8–22s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s2',label:'The Accident',start:8,end:22,
+  draw(ctx,t,p){
+    drawNightBG();drawRoad(220,W,100);
+    // Street lights
+    [[150,230],[450,230],[750,230]].forEach(([lx,ly])=>{
+      ctx.fillStyle='#555';ctx.fillRect(lx-3,ly-80,6,80);
+      ctx.save();ctx.shadowColor='#ffe97a';ctx.shadowBlur=30;ctx.fillStyle='rgba(255,233,122,0.8)';
+      ctx.beginPath();ctx.arc(lx,ly-80,9,0,Math.PI*2);ctx.fill();ctx.restore();
+    });
+    const crashT=7.5;
+    if(t<crashT){
+      // Cars approaching
+      const prog=t/crashT;
+      const c1x=lerp(-120,W/2-80,easeOut(prog));
+      const c2x=lerp(W+120,W/2+80,easeOut(prog));
+      drawCar(c1x,270,0.85,C.carBlue,'right');
+      drawCar(c2x,270,0.85,C.carRed,'left');
+    } else {
+      // After crash
+      const ct=t-crashT;
+      drawCar(W/2-110,270,0.85,C.carBlue,'right',true);
+      drawCar(W/2+110,270,0.85,C.carRed,'left',true);
+      drawCrash(W/2,270,ct,1.2);
+      if(ct>.3){
+        // "CRASH!" text
+        const ca=Math.max(0,1-ct);
+        ctx.save();ctx.globalAlpha=ca;
+        const sc=1+ct*.5;ctx.translate(W/2,200);ctx.scale(sc,sc);
+        strokeTxt('CRASH!',0,0,52,'#ff9900','rgba(0,0,0,0.8)');ctx.restore();
+      }
+    }
+    // Act title
+    const ta=easeOut(clamp(t/0.8,0,1));
+    ctx.save();ctx.globalAlpha=ta;
+    badge(20,18,260,34,'🚗  Act 1 — The Accident',C.carRed,'white',13);
+    ctx.restore();
+    if(t>9){
+      const na=easeOut(clamp((t-9)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=na;
+      txt('A car accident occurs at a busy intersection...',W/2,460,17,C.gray,'center','400');
+      txt('Both vehicles were involved. The suspect fled the scene.',W/2,485,15,'#6b7280','center','400');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S3: NO CCTV (22–32s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s3',label:'No CCTV Cameras',start:22,end:32,
+  draw(ctx,t,p){
+    drawNightBG();drawRoad(220,W,100);
+    // Crashed cars (static)
+    drawCar(W/2-110,270,0.85,C.carBlue,'right',true);
+    drawCar(W/2+110,270,0.85,C.carRed,'left',true);
+    // Area title
+    ctx.save();ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    strokeTxt('NO CCTV CAMERAS IN THIS AREA',W/2,55,26,'#ef4444','rgba(0,0,0,0.8)');
+    ctx.restore();
+    // CCTV icons appearing one by one with X
+    const cams=[{x:120,y:195,d:.5},{x:280,y:185,d:1.2},{x:680,y:195,d:2},{x:840,y:185,d:2.8},{x:460,y:140,d:1.8}];
+    cams.forEach(cam=>{
+      if(t<cam.d)return;
+      const ca=easeOut(clamp((t-cam.d)/.6,0,1));
+      ctx.save();ctx.globalAlpha=ca;
+      drawCCTV(cam.x,cam.y,50,ca>.8);
+      ctx.restore();
+    });
+    if(t>4){
+      const ba=easeOut(clamp((t-4)/1,0,1));
+      ctx.save();ctx.globalAlpha=ba;
+      ctx.fillStyle='rgba(239,68,68,0.1)';ctx.fillRect(0,0,W,H);
+      speechBubble(W/2-170,380,340,80,['No cameras!','We have no footage!'],'right','rgba(255,235,235,0.95)','#dc2626',18);
+      drawPoliceOfficer(W/2-220,435,.75,'neutral','confused');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S4: WITNESS TAKES PHOTO (32–46s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s4',label:'The Blurry Photo',start:32,end:46,
+  draw(ctx,t,p){
+    drawNightBG();drawRoad(220,W,100);
+    drawCar(W/2-110,270,0.85,C.carBlue,'right',true);
+    drawCar(W/2+110,270,0.85,C.carRed,'left',true);
+    badge(20,18,320,34,'📷  A Witness Spots Something',C.carGray,'white',13);
+    const wa=easeOut(clamp(t/1.2,0,1));
+    ctx.save();ctx.globalAlpha=wa;
+    drawWitness(170,400,.9,t>2?'phone':'neutral');
+    ctx.restore();
+    if(t>2.5){
+      const pa=easeOut(clamp((t-2.5)/1,0,1));
+      ctx.save();ctx.globalAlpha=pa;
+      speechBubble(185,195,270,70,["Wait... I can see the",'car\'s number plate!'],'right','rgba(220,240,255,0.95)',C.brand,15);
+      ctx.restore();
+    }
+    // Camera flash at t=4
+    if(t>3.8&&t<4.3){
+      const fa=1-Math.abs(t-4.05)/.25;
+      ctx.save();ctx.globalAlpha=fa*.8;ctx.fillStyle='white';ctx.fillRect(0,0,W,H);ctx.restore();
+    }
+    // Show blurry photo on side
+    if(t>4.5){
+      const pa=easeOut(clamp((t-4.5)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=pa;
+      // Photo frame
+      ctx.fillStyle='#1f2937';rrect(ctx,560,120,320,230,8);ctx.fill();
+      ctx.fillStyle='white';rrect(ctx,568,128,304,214,5);ctx.fill();
+      // Blurry photo content
+      const blurVal=3.5+Math.sin(t*.5)*.5;
+      ctx.save();ctx.filter=`blur(${blurVal}px)`;
+      // Scene inside photo (car rear with plate)
+      ctx.fillStyle='#1a2030';ctx.fillRect(568,128,304,140);
+      ctx.fillStyle='#374151';rrect(ctx,630,148,180,90,8);ctx.fill();
+      // Plate area
+      ctx.fillStyle='#fbbf24';rrect(ctx,665,178,110,35,3);ctx.fill();
+      ctx.fillStyle='#111';ctx.font=`bold 13px 'Courier New'`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('KA 09 AB 5562',720,195);
+      ctx.filter='none';ctx.restore();
+      // Blurry label
+      ctx.fillStyle='#ef4444';ctx.font=`bold 12px Arial`;ctx.textAlign='center';
+      ctx.fillText('⚠ BLURRY — UNREADABLE',718,322);
+      ctx.fillStyle='#6b7280';ctx.font=`11px Arial`;
+      ctx.fillText('📷 Taken by witness at scene',718,342);
+      ctx.restore();
+    }
+    if(t>8){
+      const ta=easeOut(clamp((t-8)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      txt('The photo is blurry — the number plate is not clearly visible.',W/2,490,14,C.gray,'center','400');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S5: POLICE CAN'T IDENTIFY (46–58s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s5',label:'Police Frustrated',start:46,end:58,
+  draw(ctx,t,p){
+    // Police station bg
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0d1117');g.addColorStop(1,'#111827');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    // Interior
+    ctx.fillStyle='#1f2937';ctx.fillRect(0,350,W,H-350);
+    ctx.fillStyle='#374151';ctx.fillRect(0,348,W,6);
+    badge(20,18,240,34,'🚨  Police Investigation',C.police,'white',13);
+    const ba=easeOut(clamp(t/1.2,0,1));
+    ctx.save();ctx.globalAlpha=ba;
+    drawPoliceOfficer(280,390,.95,'holding','confused');
+    ctx.restore();
+    // Blurry image display
+    if(t>1){
+      const ia=easeOut(clamp((t-1)/1,0,1));
+      ctx.save();ctx.globalAlpha=ia;
+      ctx.fillStyle='#111';rrect(ctx,450,80,380,250,8);ctx.fill();
+      ctx.fillStyle='rgba(30,58,138,0.3)';rrect(ctx,450,80,380,250,8);ctx.fill();
+      ctx.strokeStyle='#1e3a8a';ctx.lineWidth=2;rrect(ctx,450,80,380,250,8);ctx.stroke();
+      txt('SUBMITTED EVIDENCE',640,105,13,'#93c5fd','center','700');
+      // Blurry plate
+      ctx.save();ctx.filter='blur(4px)';
+      ctx.fillStyle='#fbbf24';rrect(ctx,520,130,240,80,6);ctx.fill();
+      ctx.fillStyle='#1a1a1a';ctx.font=`900 28px 'Courier New'`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('KA 09 AB 5562',640,170);
+      ctx.filter='none';ctx.restore();
+      txt('⚠ TOO BLURRY TO READ',640,240,14,'#ef4444','center','700');
+      ctx.restore();
+    }
+    // Speech bubble from officer
+    if(t>2){
+      const sa=easeOut(clamp((t-2)/1,0,1));
+      ctx.save();ctx.globalAlpha=sa;
+      speechBubble(320,165,270,90,['We cannot identify','the vehicle!','The image is too blurry.'],'right','rgba(255,240,240,0.95)','#dc2626',14);
+      ctx.restore();
+    }
+    // Question marks
+    if(t>3){
+      ['?','?','?'].forEach((q,i)=>{
+        const qa=easeOut(clamp((t-3-i*.5)/.8,0,1));
+        ctx.save();ctx.globalAlpha=qa;
+        const qy=200-i*40+floatY(t,8,1+i*.3);
+        ctx.fillStyle='#ef4444';ctx.font=`bold ${22+i*6}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(q,200+i*55,qy);
+        ctx.restore();
+      });
+    }
+    if(t>7){
+      const ta=easeOut(clamp((t-7)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      ctx.fillStyle='rgba(37,99,235,0.12)';rrect(ctx,20,465,920,55,10);ctx.fill();
+      ctx.strokeStyle=C.brand;ctx.lineWidth=1.5;rrect(ctx,20,465,920,55,10);ctx.stroke();
+      txt('The investigation is stuck... until a colleague mentions CloudInvoke.',W/2,493,15,C.brand,'center','600');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S6: CLOUDINVOKE TO THE RESCUE (58–70s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s6',label:'CloudInvoke System',start:58,end:70,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#050810');g.addColorStop(1,'#0a0f1e');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    // Particles
+    ctx.save();ctx.globalAlpha=.15;
+    for(let i=0;i<30;i++){
+      const px=(i*173+t*20)%W,py=(i*97+t*12)%(H*.8)+20;
+      ctx.fillStyle=C.brand;ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+    const la=easeOut(clamp(t/1.5,0,1));
+    ctx.save();ctx.globalAlpha=la;
+    const sc=lerp(0.5,1.2,bounce(t/1.5));
+    ctx.translate(W/2,H/2-40);ctx.scale(sc,sc);ctx.translate(-W/2,-(H/2-40));
+    drawCloudInvokeLogo(W/2,H/2-40,1.2,t);
+    ctx.restore();
+    if(t>2){
+      const ta=easeOut(clamp((t-2)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      strokeTxt('"Upload the blurry image."',W/2,H/2+72,24,'white','rgba(0,0,50,0.8)');
+      strokeTxt('"We\'ll make it crystal clear."',W/2,H/2+106,24,'#93c5fd','rgba(0,0,50,0.8)');
+      ctx.restore();
+    }
+    if(t>5){
+      const ba=easeOut(clamp((t-5)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ba;
+      badge(W/2-210,H-70,200,40,'🔍  Text Detection',C.brand,'white',15);
+      badge(W/2-0,H-70,200,40,'✨  AI Enhancement',C.brandPurple,'white',15);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S7: UPLOAD & SYSTEM PROCESSING (70–86s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s7',label:'Upload & AI Processing',start:70,end:86,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#080d1a');g.addColorStop(1,'#0d1525');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    badge(20,18,280,34,'⬆  Uploading to CloudInvoke',C.brand,'white',13);
+    // System UI frame
+    ctx.save();ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    ctx.fillStyle=C.ui;rrect(ctx,140,60,680,400,14);ctx.fill();
+    ctx.strokeStyle=C.uiBorder;ctx.lineWidth=2;rrect(ctx,140,60,680,400,14);ctx.stroke();
+    // Title bar
+    ctx.fillStyle='#0a1628';rrect(ctx,140,60,680,40,14);ctx.fill();
+    ctx.fillStyle=C.brand;ctx.font=`bold 14px 'Poppins',Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('☁  CloudInvoke — AI Enhancement Pipeline',480,80);
+    // Traffic light dots
+    ['#ef4444','#f59e0b','#22c55e'].forEach((c,i)=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(163+i*18,80,5,0,Math.PI*2);ctx.fill();});
+    ctx.restore();
+    // Blurry input image (left panel)
+    ctx.save();ctx.globalAlpha=easeOut(clamp(t/.8,0,1));
+    ctx.fillStyle='#0f1928';rrect(ctx,160,115,290,270,8);ctx.fill();
+    txt('INPUT: Blurry Image',305,128,12,'#64748b','center','600');
+    // Blurry plate display
+    ctx.save();ctx.filter='blur(3.5px)';
+    ctx.fillStyle='#fbbf24';rrect(ctx,190,145,260,100,6);ctx.fill();
+    ctx.fillStyle='#1a1a1a';ctx.font=`900 32px 'Courier New'`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('KA 09 AB 5562',305,165);
+    ctx.font=`bold 14px Arial`;ctx.fillText('5562',305,200);
+    ctx.filter='none';ctx.restore();
+    txt('⚠ Unreadable',305,265,13,'#ef4444','center','700');
+    ctx.restore();
+    // Processing pipeline (middle)
+    if(t>2){
+      const pa=easeOut(clamp((t-2)/1,0,1));
+      ctx.save();ctx.globalAlpha=pa;
+      // Pipeline steps
+      const steps=[
+        {label:'Text Detection (OCR)',sub:'Identifying text regions',color:'#7c3aed',delay:2},
+        {label:'AI Enhancement',sub:'Sharpening & contrast boost',color:C.brand,delay:4},
+        {label:'OCR Extraction',sub:'Reading number plate text',color:'#059669',delay:6},
+      ];
+      ctx.fillStyle='#0f1928';rrect(ctx,468,115,170,270,8);ctx.fill();
+      txt('PROCESSING',553,130,11,'#64748b','center','700');
+      steps.forEach((s,i)=>{
+        if(t<s.delay)return;
+        const sa=easeOut(clamp((t-s.delay)/.8,0,1));
+        ctx.globalAlpha=pa*sa;
+        const sy=160+i*78;
+        ctx.fillStyle=s.color+'22';rrect(ctx,476,sy,154,60,6);ctx.fill();
+        ctx.strokeStyle=s.color;ctx.lineWidth=1.5;rrect(ctx,476,sy,154,60,6);ctx.stroke();
+        // Spinner if active
+        const isActive=t>s.delay&&t<s.delay+2;
+        if(isActive){
+          ctx.save();ctx.translate(498,sy+30);ctx.rotate(t*4);
+          ctx.strokeStyle=s.color;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*1.5);ctx.stroke();
+          ctx.restore();
+          ctx.fillStyle=s.color;ctx.font=`bold 11px Arial`;ctx.textAlign='left';ctx.textBaseline='middle';
+          ctx.fillText(s.label,518,sy+22);
+          ctx.fillStyle='#9ca3af';ctx.font=`10px Arial`;ctx.fillText(s.sub,518,sy+38);
+        } else if(t>=s.delay+2){
+          ctx.fillStyle='#22c55e';ctx.font=`bold 14px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('✓',490,sy+30);
+          ctx.fillStyle=s.color;ctx.font=`bold 11px Arial`;ctx.textAlign='left';
+          ctx.fillText(s.label,505,sy+22);
+          ctx.fillStyle='#9ca3af';ctx.font=`10px Arial`;ctx.fillText(s.sub,505,sy+38);
+        }
+      });
+      // Scan line on input image
+      const scanT=((t-2)*0.5)%1;
+      ctx.globalAlpha=pa*.6;
+      const sy2=145+scanT*100;
+      const sg=ctx.createLinearGradient(190,sy2-12,190,sy2+12);
+      sg.addColorStop(0,'rgba(124,58,237,0)');sg.addColorStop(.5,'rgba(124,58,237,0.8)');sg.addColorStop(1,'rgba(124,58,237,0)');
+      ctx.fillStyle=sg;ctx.fillRect(190,sy2-12,260,24);
+      ctx.restore();
+    }
+    // Upload progress bar
+    if(t>1){
+      const up=clamp((t-1)/3,0,1);
+      ctx.save();ctx.globalAlpha=easeOut(clamp((t-1)/.5,0,1));
+      ctx.fillStyle='#1e3a5f';rrect(ctx,160,400,290,22,8);ctx.fill();
+      ctx.fillStyle=C.brand;rrect(ctx,160,400,290*up,22,8);ctx.fill();
+      txt(`Uploading… ${Math.round(up*100)}%`,305,425,12,C.brand,'center','600');
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S8: ENHANCED RESULTS (86–105s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s8',label:'Enhanced Results',start:86,end:105,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#080d1a');g.addColorStop(1,'#0d1525');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    badge(20,18,260,34,'✅  Enhancement Complete!',C.green,'white',13);
+    strokeTxt('Image Enhanced Successfully',W/2,65,28,'white','rgba(0,0,50,0.8)');
+    // Before panel
+    const ba=easeOut(clamp(t/.8,0,1));
+    ctx.save();ctx.globalAlpha=ba;
+    ctx.fillStyle='#0f1928';rrect(ctx,60,95,380,300,10);ctx.fill();
+    ctx.strokeStyle='#374151';ctx.lineWidth=2;rrect(ctx,60,95,380,300,10);ctx.stroke();
+    txt('BEFORE',250,115,13,'#9ca3af','center','700');
+    ctx.save();ctx.filter='blur(4px)';
+    ctx.fillStyle='#fbbf24';rrect(ctx,100,135,300,100,6);ctx.fill();
+    ctx.fillStyle='#1a1a1a';ctx.font=`900 30px 'Courier New'`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('KA 09 AB 5562',250,185);
+    ctx.filter='none';ctx.restore();
+    txt('Blurry • Unreadable • No identification',250,265,12,'#6b7280','center','400');
+    badge(130,290,240,36,'❌  Cannot identify vehicle','rgba(239,68,68,0.15)','#ef4444',13);
+    ctx.restore();
+    // After panel (reveals with animation)
+    if(t>1){
+      const aa=easeOut(clamp((t-1)/2,0,1));
+      const blurNow=lerp(4,0,easeOut(clamp((t-1)/2,0,1)));
+      ctx.save();ctx.globalAlpha=aa;
+      ctx.fillStyle='#0d1f14';rrect(ctx,520,95,380,300,10);ctx.fill();
+      ctx.strokeStyle=C.green;ctx.lineWidth=2;rrect(ctx,520,95,380,300,10);ctx.stroke();
+      if(aa>.5){ctx.save();ctx.shadowColor=C.green;ctx.shadowBlur=20;rrect(ctx,520,95,380,300,10);ctx.stroke();ctx.restore();}
+      txt('AFTER — AI ENHANCED',710,115,13,'#4ade80','center','700');
+      ctx.save();if(blurNow>0)ctx.filter=`blur(${blurNow}px)`;
+      ctx.fillStyle='#fbbf24';rrect(ctx,570,135,280,100,6);ctx.fill();
+      ctx.strokeStyle='#1a1a1a';ctx.lineWidth=3;rrect(ctx,570,135,280,100,6);ctx.stroke();
+      ctx.fillStyle='rgba(0,0,150,0.9)';rrect(ctx,570,135,280,22,3);ctx.fill();
+      ctx.fillStyle='white';ctx.font=`bold 11px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('IND  INDIA',710,146);
+      ctx.fillStyle='#1a1a1a';ctx.font=`900 32px 'Courier New'`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('KA 09 AB 5562',710,190);
+      ctx.filter='none';ctx.restore();
+      txt('Crystal Clear • High Contrast • OCR Ready',710,265,12,'#4ade80','center','400');
+      badge(590,290,240,36,'✅  Vehicle identified!',C.green,'white',13);
+      ctx.restore();
+    }
+    // VS arrow
+    if(t>1.5){
+      const va=easeOut(clamp((t-1.5)/.8,0,1));
+      ctx.save();ctx.globalAlpha=va;
+      ctx.fillStyle='#f59e0b';ctx.font=`900 28px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('→',490,245);
+      txt('AI',490,272,10,'#f59e0b','center','700');
+      ctx.restore();
+    }
+    // TXT file appears
+    if(t>5){
+      const ta=easeOut(clamp((t-5)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      drawTxtFile(710,430,.9,[
+        'CloudInvoke — Extracted Data',
+        '================================',
+        'Number Plate: KA 09 AB 5562',
+        'Confidence:   98.4%',
+        'Method:       AI OCR Enhanced',
+        'Timestamp:    2024-01-15 22:31',
+        'Status:       EXTRACTED ✓',
+      ],ta);
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S9: CASE SOLVED (105–118s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s9',label:'Police Finds the Car!',start:105,end:118,
+  draw(ctx,t,p){
+    drawNightBG();drawRoad(280,W,100);
+    badge(20,18,240,34,'🚔  Case Solved!',C.green,'white',13);
+    // Police officer happy
+    const ba=easeOut(clamp(t/1.2,0,1));
+    ctx.save();ctx.globalAlpha=ba;
+    drawPoliceOfficer(220,410,.95,'holding','happy');
+    ctx.restore();
+    // Clear plate in hand (shown on a tablet/paper)
+    if(t>1){
+      const pa=easeOut(clamp((t-1)/1.2,0,1));
+      ctx.save();ctx.globalAlpha=pa;
+      ctx.fillStyle='white';rrect(ctx,280,280,210,120,6);ctx.fill();
+      ctx.strokeStyle=C.green;ctx.lineWidth=3;rrect(ctx,280,280,210,120,6);ctx.stroke();
+      drawNumberPlate(385,330,180,60,'KA 09 AB 5562',0,1);
+      txt('CloudInvoke Enhanced',385,375,11,C.brand,'center','600');
+      ctx.restore();
+    }
+    // Police car driving in
+    if(t>3){
+      const cx=slide(t-3,3,W+200,700);
+      ctx.save();ctx.globalAlpha=easeOut(clamp((t-3)/2,0,1));
+      drawPoliceCar(cx,330,.85,t,'left');
+      ctx.restore();
+    }
+    // Case solved text
+    if(t>4){
+      const ta=easeOut(clamp((t-4)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      strokeTxt('VEHICLE LOCATED!',W/2+100,130,36,'#22c55e','rgba(0,20,0,0.8)');
+      txt('Number Plate: KA 09 AB 5562',W/2+100,175,18,'white','center','700');
+      badge(W/2-40,210,280,38,'🚗  Suspect car tracked down',C.green,'white',14);
+      ctx.restore();
+    }
+    // Speech bubble from officer
+    if(t>5){
+      const sa=easeOut(clamp((t-5)/1,0,1));
+      ctx.save();ctx.globalAlpha=sa;
+      speechBubble(270,160,250,80,['CloudInvoke saved','the investigation! 🎉'],'right','rgba(220,255,230,0.95)',C.green,15);
+      ctx.restore();
+    }
+    // Confetti
+    if(t>4){
+      const cols=[C.green,'#22c55e','#fbbf24',C.brand,C.brandPurple,'#ef4444'];
+      ctx.save();ctx.globalAlpha=.7;
+      for(let i=0;i<35;i++){
+        const cx2=(i*137+t*55)%W,cy2=(i*89+Math.sin(i*1.5)*30+t*40)%(H-80)+20;
+        ctx.fillStyle=cols[i%cols.length];ctx.save();ctx.translate(cx2,cy2);ctx.rotate(i+t*2.5);
+        ctx.fillRect(-5,-3,10,6);ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+},
+
+// ═══════════════════════════════════════════════════════════════
+// S10: CONCLUSION (118–128s)
+// ═══════════════════════════════════════════════════════════════
+{id:'s10',label:'CloudInvoke — Conclusion',start:118,end:128,
+  draw(ctx,t,p){
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#050810');g.addColorStop(.5,'#0a0f20');g.addColorStop(1,'#050d14');
+    ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    // Stars
+    ctx.save();ctx.globalAlpha=.5;
+    for(let i=0;i<100;i++){const sx=(i*163)%W,sy=(i*97)%H;ctx.fillStyle='white';ctx.beginPath();ctx.arc(sx,sy,.5+Math.sin(t*2+i)*.4,0,Math.PI*2);ctx.fill();}
+    ctx.restore();
+    const la=easeOut(clamp(t/1.5,0,1));
+    ctx.save();ctx.globalAlpha=la;
+    drawCloudInvokeLogo(W/2,H/2-60,1.15,t);
+    ctx.restore();
+    if(t>2){
+      const ta=easeOut(clamp((t-2)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ta;
+      strokeTxt('Building Safer Communities with AI',W/2,H/2+68,22,'white','rgba(0,0,50,0.9)');
+      ctx.restore();
+    }
+    if(t>4){
+      const ba=easeOut(clamp((t-4)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ba;
+      badge(W/2-330,H-90,210,38,'🔍  Blurry → Clear',C.brand,'white',14);
+      badge(W/2-90,H-90,200,38,'📄  Text Extracted',C.brandPurple,'white',14);
+      badge(W/2+140,H-90,200,38,'✅  Case Solved',C.green,'white',14);
+      ctx.fillStyle='#1e40af';ctx.font=`400 12px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('CloudInvoke — Your Vision, Enhanced. Justice Served.',W/2,H-28);
+      ctx.restore();
+    }
+    if(t>5.5){
+      const ca=easeOut(clamp((t-5.5)/1.5,0,1));
+      ctx.save();ctx.globalAlpha=ca*.6;
+      const cols=[C.brand,C.brandPurple,C.green,'#f59e0b','#ef4444'];
+      for(let i=0;i<30;i++){
+        const cx=(i*157+t*45)%W,cy=(i*93+Math.sin(i*2)*25+t*35)%(H-60)+20;
+        ctx.fillStyle=cols[i%cols.length];ctx.save();ctx.translate(cx,cy);ctx.rotate(i+t*2);
+        ctx.fillRect(-5,-3,10,6);ctx.restore();
+      }
+      ctx.restore();
+    }
+  }
+},
+];
+
+// ── CONTROLLER ───────────────────────────────────────────────────
+let globalTime=0,playing=false,lastTs=null,raf=null;
+const pf=document.getElementById('pf'),td=document.getElementById('td');
+const scl=document.getElementById('scl'),pb=document.getElementById('pb');
+const rb=document.getElementById('rb'),sov=document.getElementById('sov');
+const sbtn=document.getElementById('sbtn'),tl=document.getElementById('tl');
+
+const fmtT=s=>`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`;
+function findScene(t){for(const s of SCENES)if(t>=s.start&&t<s.end)return s;return SCENES[SCENES.length-1];}
+function render(t){
+  ctx.clearRect(0,0,W,H);
+  const sc=findScene(t);
+  if(sc)try{sc.draw(ctx,t-sc.start,clamp((t-sc.start)/(sc.end-sc.start),0,1));}catch(e){console.warn(e);}
+}
+function updateUI(){
+  pf.style.width=(globalTime/TOTAL*100)+'%';
+  td.textContent=`${fmtT(globalTime)} / ${fmtT(TOTAL)}`;
+  const sc=findScene(globalTime);
+  if(sc)scl.textContent=`${SCENES.indexOf(sc)+1}/${SCENES.length} — ${sc.label}`;
+  pb.textContent=playing?'⏸':'▶';
+}
+function tick(ts){
+  if(lastTs!==null&&playing){const dt=Math.min((ts-lastTs)/1000,.1);globalTime=Math.min(globalTime+dt,TOTAL);}
+  lastTs=ts;render(globalTime);updateUI();
+  if(globalTime>=TOTAL){playing=false;updateUI();lastTs=null;return;}
+  raf=requestAnimationFrame(tick);
+}
+function play(){if(globalTime>=TOTAL){globalTime=0;lastTs=null;}playing=true;if(!raf)raf=requestAnimationFrame(tick);}
+function pause(){playing=false;lastTs=null;}
+function restart(){globalTime=0;lastTs=null;playing=true;raf=requestAnimationFrame(tick);}
+
+pb.addEventListener('click',()=>playing?pause():play());
+rb.addEventListener('click',restart);
+sbtn.addEventListener('click',()=>{sov.classList.add('hidden');play();});
+tl.addEventListener('click',e=>{
+  const r=tl.getBoundingClientRect();
+  globalTime=clamp((e.clientX-r.left)/r.width*TOTAL,0,TOTAL);
+  lastTs=null;render(globalTime);updateUI();
+});
+render(0);updateUI();
+</script>
+</body>
+</html>
