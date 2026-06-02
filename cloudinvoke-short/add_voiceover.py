@@ -32,11 +32,13 @@ def main():
     vo_dur = probe(VOICEOVER)
     pad = max(0.0, vid_dur - vo_dur)
 
+    # Stereo + slight gain — mono AAC in MP4 is muted in some players/preview UIs
     cmd = [
         "ffmpeg", "-y", "-i", str(VIDEO), "-i", str(VOICEOVER),
-        "-filter_complex", f"[1:a]apad=pad_dur={pad}[aout]",
+        "-filter_complex",
+        f"[1:a]aresample=48000,pan=stereo|c0=c0|c1=c0,volume=1.5,apad=pad_dur={pad}[aout]",
         "-map", "0:v:0", "-map", "[aout]",
-        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-ac", "2",
         "-t", str(vid_dur), "-movflags", "+faststart", str(OUT),
     ]
     subprocess.run(cmd, check=True)
